@@ -2,11 +2,17 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 
-class Person extends Model
+/**
+ * Authenticatable so a person can be signed in through the `people`
+ * guard (config/auth.php) after biometric verification.
+ */
+class Person extends Authenticatable
 {
+    protected $table = 'people';
+
     protected $fillable = [
         'person_id',
         'first_name',
@@ -47,5 +53,4 @@ class Person extends Model
                 ($this->suffix ? ' ' . $this->suffix : '')
         );
     }
-    
 }

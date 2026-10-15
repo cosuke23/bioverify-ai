@@ -111,14 +111,30 @@ class VoiceRecognitionController extends Controller
                 ] + $score);
             }
 
-            $person = Person::where('status', 'Active')
-                ->find($result['person_id']);
+            $person = Person::find($result['person_id']);
 
             if (!$person) {
                 return response()->json([
                     'matched' => false,
                     'message' => 'A voice match was detected, but the associated person record could not be found.',
                 ], 404);
+            }
+
+            // The status may have changed while the AI was matching.
+            if ($person->status !== 'Active') {
+                RecognitionLog::record(
+                    'Voice',
+                    'Not Matched',
+                    $person->id,
+                    $result['similarity_score'] ?? null,
+                    $request->ip(),
+                    'Matched an inactive personnel record; access refused.'
+                );
+
+                return response()->json([
+                    'matched' => false,
+                    'message' => 'This personnel record is inactive and cannot be verified.',
+                ], 403);
             }
 
             RecognitionLog::record(

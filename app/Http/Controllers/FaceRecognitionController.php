@@ -110,8 +110,27 @@ class FaceRecognitionController extends Controller
                         'person_id',
                         $result['person_id']
                     )
-                    ->where('status', 'Active')
                     ->first();
+
+                // The status may have changed while the AI was matching.
+                if ($person && $person->status !== 'Active') {
+
+                    RecognitionLog::record(
+                        'Face',
+                        'Not Matched',
+                        $person->id,
+                        $result['similarity_score'] ?? null,
+                        $request->ip(),
+                        'Matched an inactive personnel record; access refused.'
+                    );
+
+                    return response()->json([
+                        'success' => false,
+                        'matched' => false,
+                        'message' =>
+                            'This personnel record is inactive and cannot be verified.',
+                    ], 403);
+                }
 
                 /*
                 |--------------------------------------------------------------------------
