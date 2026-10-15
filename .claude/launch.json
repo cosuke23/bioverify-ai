@@ -1,0 +1,23 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "rag-api",
+      "runtimeExecutable": "rag-ai/.venv/Scripts/python.exe",
+      "runtimeArgs": ["rag-ai/app/chat_api.py"],
+      "port": 8002
+    },
+    {
+      "name": "face-voice-api",
+      "runtimeExecutable": "python-ai/.venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "main:app", "--app-dir", "python-ai", "--host", "127.0.0.1", "--port", "8001"],
+      "port": 8001
+    },
+    {
+      "name": "laravel",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["artisan", "serve", "--port=8000"],
+      "port": 8000
+    }
+  ]
+}
