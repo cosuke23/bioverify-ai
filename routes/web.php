@@ -51,6 +51,12 @@ Route::post('/logout', [LoginController::class, 'destroy'])
 Route::view('/biometric-login', 'biometric-login')
     ->name('biometric.login');
 
+// Live capture guidance: ~2 frames per second while the camera is open.
+Route::post(
+    '/face-recognition/analyze',
+    [FaceRecognitionController::class, 'analyze']
+)->middleware('throttle:face-analyze')->name('face.recognition.analyze');
+
 Route::middleware('throttle:recognition')->group(function () {
     Route::post(
         '/face-recognition/recognize',

@@ -1,171 +1,297 @@
-<!DOCTYPE html>
-<html lang="en">
+@extends('layouts.pcg')
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{{ $document->title }} - BioVerify AI</title>
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-</head>
+@section('title', $document->title)
 
-<body class="min-h-screen bg-slate-50 text-slate-800">
+@php
+    $status = $document->status ?? 'pending';
+    $inFlight = in_array($status, ['pending', 'processing'], true) && !$document->isStale();
+    $statusBadge = match (true) {
+        $document->isStale() => 'badge-warn',
+        $status === 'completed' => 'badge-ok',
+        in_array($status, ['pending', 'processing'], true) => 'badge-info',
+        $status === 'failed' => 'badge-danger',
+        default => 'badge-muted',
+    };
+@endphp
 
-    <nav class="border-b border-slate-200 bg-white">
-        <div class="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-            <a href="{{ route('pdf-documents.index') }}" class="font-extrabold text-blue-800">
-                BioVerify AI
-            </a>
-            <a href="{{ route('pdf-documents.index') }}"
-                class="text-sm font-semibold text-blue-700 hover:text-blue-900">
-                All documents
-            </a>
-        </div>
-    </nav>
+@section('crumbs')
+    <a href="{{ route('pdf-documents.index') }}">Documents</a>
+    <span aria-hidden="true">/</span>
+    <strong>{{ $document->title }}</strong>
+@endsection
 
-    <main class="mx-auto max-w-5xl space-y-6 px-6 py-10">
+@push('head')
+    <style>
+        .doc [hidden] {
+            display: none !important;
+        }
 
-        @if (session('success'))
-            <div class="rounded-xl border border-green-200 bg-green-50 p-4 text-green-800">
-                {{ session('success') }}
-            </div>
-        @endif
+        .doc-grid {
+            display: grid;
+            gap: 20px;
+            align-items: start;
+        }
 
-        @if (session('info'))
-            <div class="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-800">
-                {{ session('info') }}
-            </div>
-        @endif
+        @media (min-width: 1100px) {
+            .doc-grid {
+                grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+            }
 
-        @if (session('error'))
-            <div class="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">
-                {{ session('error') }}
-            </div>
-        @endif
+            .doc-aside {
+                position: sticky;
+                top: 84px;
+            }
+        }
 
-        <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-                <div class="min-w-0">
-                    <p class="text-xs font-bold uppercase tracking-widest text-blue-700">
-                        PDF Document
-                    </p>
-                    <h1 class="mt-2 break-words text-2xl font-extrabold text-slate-900">
-                        {{ $document->title }}
-                    </h1>
-                    <p class="mt-2 break-all text-sm text-slate-500">
-                        {{ $document->original_filename }}
-                    </p>
-                </div>
+        .doc-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 14px;
+            margin-bottom: 20px;
+        }
 
-                <div class="flex items-center gap-3">
-                    <span
-                        class="rounded-full px-3 py-1 text-xs font-bold
-                        @if ($document->status === 'completed') bg-green-100 text-green-800
-                        @elseif ($document->status === 'failed') bg-red-100 text-red-800
-                        @else bg-blue-100 text-blue-800 @endif">
-                        {{ ucfirst($document->status) }}
-                    </span>
+        .doc-stat-text {
+            margin-top: 8px;
+            font-family: var(--font-mono);
+            font-size: 15px;
+            color: var(--ink);
+        }
 
-                    <form method="POST" action="{{ route('pdf-documents.destroy', $document) }}"
-                        onsubmit="return confirm('Delete this PDF and remove it from Pong AI\'s knowledge?');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit"
-                            class="rounded-lg bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-600 hover:text-white">
-                            Delete
-                        </button>
-                    </form>
-                </div>
-            </div>
+        .doc-summary {
+            color: var(--ink-2);
+            line-height: 1.75;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
 
-            <div class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div class="rounded-xl bg-slate-50 p-4">
-                    <p class="text-sm text-slate-500">Pages</p>
-                    <p class="mt-1 text-2xl font-extrabold text-slate-900">
-                        {{ $document->page_count ?? '—' }}
-                    </p>
-                </div>
-                <div class="rounded-xl bg-slate-50 p-4">
-                    <p class="text-sm text-slate-500">Processed at</p>
-                    <p class="mt-2 font-semibold text-slate-900">
-                        {{ $document->processed_at?->format('M d, Y h:i A') ?? 'Not completed' }}
-                    </p>
-                </div>
-            </div>
+        .doc-progress {
+            position: relative;
+            height: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+            border-radius: 999px;
+            background: var(--info-soft);
+        }
 
-            @if (in_array($document->status, ['pending', 'processing'], true) && !$document->isStale())
-                <div class="mt-5 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800">
-                    Indexing and summarizing in the background. This can take a few minutes
-                    for large PDFs; the page refreshes automatically.
-                </div>
-            @endif
+        .doc-progress::after {
+            content: '';
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: 35%;
+            border-radius: 999px;
+            background: var(--info);
+            animation: doc-indeterminate 1.4s ease-in-out infinite;
+        }
 
-            @if ($document->status === 'failed' && $document->processing_error)
-                <div class="mt-5 rounded-xl border border-red-200 bg-red-50 p-4">
-                    <h2 class="font-bold text-red-800">Processing error</h2>
-                    <p class="mt-2 break-words text-sm text-red-700">
-                        {{ $document->processing_error }}
-                    </p>
-                </div>
-            @endif
+        @keyframes doc-indeterminate {
+            from {
+                transform: translateX(-100%);
+            }
 
-            @if ($document->canRetry())
-                <form method="POST" action="{{ route('pdf-documents.retry', $document) }}" class="mt-5">
-                    @csrf
-                    <p class="mb-3 text-sm text-slate-600">
-                        @if ($document->isStale())
-                            Processing has not finished after
-                            {{ \App\Models\PdfDocument::STALE_AFTER_MINUTES }} minutes. Make sure the
-                            queue worker is running, then try again.
-                        @endif
-                    </p>
-                    <button type="submit"
-                        class="rounded-xl bg-blue-700 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-blue-800">
-                        Retry processing
-                    </button>
-                </form>
-            @endif
-        </section>
+            to {
+                transform: translateX(300%);
+            }
+        }
 
-        @if ($document->summary)
-            <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 class="text-xl font-extrabold text-slate-900">AI-generated summary</h2>
-                <div class="mt-5 whitespace-pre-wrap leading-7 text-slate-700">{{ $document->summary }}</div>
-            </section>
-        @endif
+        .doc-answer {
+            padding: 18px;
+            border: 1px solid var(--line);
+            border-left: 4px solid var(--pcg-gold);
+            border-radius: var(--radius);
+            background: var(--canvas);
+        }
 
-        @if ($document->status === 'completed')
-            <section class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                <h2 class="text-xl font-extrabold text-slate-900">Ask this document</h2>
-                <p class="mt-2 text-sm text-slate-500">
-                    Ask a question about the PDF. Answers use retrieved excerpts and include source pages.
+        .doc-answer-text {
+            color: var(--ink-2);
+            line-height: 1.75;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .doc-sources {
+            display: grid;
+            gap: 6px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .doc-sources li {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--ink-2);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .doc-progress::after {
+                animation: none;
+                width: 100%;
+                opacity: .5;
+            }
+        }
+    </style>
+@endpush
+
+@section('content')
+    <div class="doc">
+        <header class="page-head rise">
+            <div class="min-w-0">
+                <div class="eyebrow">Knowledge · Document</div>
+                <h1 class="page-title" style="overflow-wrap:anywhere">{{ $document->title }}</h1>
+                <p class="mt-2 flex flex-wrap items-center gap-2">
+                    <span class="tag" style="max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"
+                        title="{{ $document->original_filename }}">{{ $document->original_filename }}</span>
+                    <span class="badge {{ $statusBadge }}">{{ $document->isStale() ? 'Stalled' : ucfirst($status) }}</span>
                 </p>
+            </div>
 
-                <form id="questionForm" class="mt-5 space-y-4">
-                    <label for="question" class="block text-sm font-semibold text-slate-700">
-                        Your question
-                    </label>
-                    <textarea id="question" name="question" rows="3" maxlength="4000" required
-                        placeholder="What are the main findings in this document?"
-                        class="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100"></textarea>
+            <div class="flex flex-wrap items-center gap-2">
+                <a href="{{ route('pdf-documents.index') }}" class="btn btn-ghost btn-sm">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                    All documents
+                </a>
 
-                    <button id="askButton" type="submit"
-                        class="rounded-xl bg-blue-700 px-6 py-3 font-bold text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-50">
-                        Ask AI
+                <form method="POST" action="{{ route('pdf-documents.destroy', $document) }}"
+                    onsubmit="return confirm('Delete this PDF and remove it from Pong AI\'s knowledge?');">
+                    @csrf
+                    @method('DELETE')
+                    <button type="submit" class="btn btn-danger btn-sm">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        </svg>
+                        Delete
                     </button>
                 </form>
+            </div>
+        </header>
 
-                <div id="answerPanel" class="mt-6 hidden rounded-xl border border-slate-200 bg-slate-50 p-5">
-                    <h3 class="font-bold text-slate-900">AI answer</h3>
-                    <div id="answerText" class="mt-3 whitespace-pre-wrap leading-7 text-slate-700"></div>
-                    <div id="sourceList" class="mt-5 space-y-2"></div>
+        <div class="doc-stats rise rise-2">
+            <div class="stat">
+                <div class="stat-label">Pages</div>
+                <div class="stat-value">{{ $document->page_count ?? '—' }}</div>
+            </div>
+            <div class="stat {{ $document->processed_at ? 'is-ok' : 'is-gold' }}">
+                <div class="stat-label">Processed</div>
+                <div class="doc-stat-text">{{ $document->processed_at?->format('M d, Y h:i A') ?? 'Not completed' }}</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Uploaded</div>
+                <div class="doc-stat-text">{{ $document->created_at?->format('M d, Y h:i A') ?? 'Unknown' }}</div>
+            </div>
+        </div>
+
+        @if ($inFlight)
+            <div class="alert alert-info mb-5 rise" role="status">
+                <div class="w-full">
+                    <strong class="block">Indexing and summarising in the background</strong>
+                    This can take a few minutes for large PDFs. The page refreshes automatically.
+                    <div class="doc-progress" aria-hidden="true"></div>
                 </div>
-
-                <p id="questionError" role="alert" class="mt-4 hidden text-sm text-red-600"></p>
-            </section>
+            </div>
         @endif
-    </main>
 
+        @if ($status === 'failed' && $document->processing_error)
+            <div class="alert alert-danger mb-5 rise" role="alert">
+                <div class="min-w-0">
+                    <strong class="block">Processing error</strong>
+                    <span style="overflow-wrap:anywhere">{{ $document->processing_error }}</span>
+                </div>
+            </div>
+        @endif
+
+        @if ($document->canRetry())
+            <form method="POST" action="{{ route('pdf-documents.retry', $document) }}"
+                class="alert alert-warn mb-5 rise items-center justify-between flex-wrap">
+                @csrf
+                <span>
+                    @if ($document->isStale())
+                        Processing has not finished after
+                        {{ \App\Models\PdfDocument::STALE_AFTER_MINUTES }} minutes. Make sure the
+                        queue worker is running, then try again.
+                    @else
+                        Processing did not complete. Check the AI services, then retry.
+                    @endif
+                </span>
+                <button type="submit" class="btn btn-primary btn-sm">Retry processing</button>
+            </form>
+        @endif
+
+        <div class="doc-grid">
+            <div class="min-w-0 grid gap-5">
+                @if ($document->summary)
+                    <section class="card rise rise-3" aria-labelledby="summaryTitle">
+                        <div class="card-head">
+                            <h2 class="card-title" id="summaryTitle">AI summary</h2>
+                            <span class="tag">Generated</span>
+                        </div>
+                        <div class="card-pad doc-summary">{{ $document->summary }}</div>
+                    </section>
+                @else
+                    <section class="card rise rise-3">
+                        <div class="card-pad muted text-sm">
+                            {{ $inFlight ? 'The summary will appear here once processing finishes.' : 'No summary is available for this document.' }}
+                        </div>
+                    </section>
+                @endif
+            </div>
+
+            <aside class="doc-aside min-w-0">
+                @if ($status === 'completed')
+                    <section class="card rise rise-3" aria-labelledby="askTitle">
+                        <div class="card-head">
+                            <h2 class="card-title" id="askTitle">Ask this document</h2>
+                        </div>
+
+                        <div class="card-pad">
+                            <p class="muted text-sm mb-4">
+                                Answers are drawn from retrieved excerpts of this PDF and cite their source pages.
+                            </p>
+
+                            <form id="questionForm" class="grid gap-3">
+                                <div class="field">
+                                    <label for="question" class="label">Your question</label>
+                                    <textarea id="question" name="question" rows="3" maxlength="4000" required
+                                        placeholder="What are the main requirements in this document?" class="textarea"></textarea>
+                                </div>
+
+                                <button id="askButton" type="submit" class="btn btn-primary">Ask AI</button>
+                            </form>
+
+                            <p id="questionError" role="alert" class="field-error mt-3" hidden></p>
+
+                            <div id="answerPanel" class="doc-answer mt-5" hidden aria-live="polite">
+                                <div class="stat-label mb-2">AI answer</div>
+                                <div id="answerText" class="doc-answer-text"></div>
+                                <div id="sourceBlock" class="mt-4" hidden>
+                                    <div class="stat-label mb-2">Sources</div>
+                                    <ul id="sourceList" class="doc-sources"></ul>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                @else
+                    <section class="card rise rise-3">
+                        <div class="card-head">
+                            <h2 class="card-title">Ask this document</h2>
+                        </div>
+                        <div class="card-pad muted text-sm">
+                            Questions open once the document has finished processing.
+                        </div>
+                    </section>
+                @endif
+            </aside>
+        </div>
+    </div>
+@endsection
+
+@push('scripts')
     @if (in_array($document->status, ['pending', 'processing'], true) && !$document->isStale())
         <script>
             setTimeout(() => window.location.reload(), 5000);
@@ -173,86 +299,92 @@
     @endif
 
     <script>
-        const questionForm = document.getElementById('questionForm');
+        (function() {
+            'use strict';
 
-        if (questionForm) {
+            const questionForm = document.getElementById('questionForm');
+            if (!questionForm) return;
+
             const askButton = document.getElementById('askButton');
             const questionInput = document.getElementById('question');
             const answerPanel = document.getElementById('answerPanel');
             const answerText = document.getElementById('answerText');
+            const sourceBlock = document.getElementById('sourceBlock');
             const sourceList = document.getElementById('sourceList');
             const questionError = document.getElementById('questionError');
+
+            questionInput.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+                    event.preventDefault();
+                    questionForm.requestSubmit ? questionForm.requestSubmit() : questionForm.submit();
+                }
+            });
 
             questionForm.addEventListener('submit', async (event) => {
                 event.preventDefault();
 
                 const question = questionInput.value.trim();
-
                 if (!question) return;
 
                 askButton.disabled = true;
-                askButton.textContent = 'Thinking...';
-                questionError.classList.add('hidden');
-                answerPanel.classList.add('hidden');
+                askButton.textContent = 'Thinking…';
+                questionError.hidden = true;
+                answerPanel.hidden = true;
 
                 try {
-                    const response = await fetch(
-                        @json(route('pdf-documents.ask', $document)), {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json',
-                                'X-CSRF-TOKEN': document.querySelector(
-                                    'meta[name="csrf-token"]'
-                                ).content,
-                            },
-                            body: JSON.stringify({
-                                question
-                            }),
-                        }
-                    );
+                    const response = await fetch(@json(route('pdf-documents.ask', $document)), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: JSON.stringify({
+                            question
+                        }),
+                    });
 
                     let data;
 
                     try {
                         data = await response.json();
                     } catch {
-                        throw new Error(
-                            `The server returned an unexpected response (HTTP ${response.status}).`
-                        );
+                        throw new Error(`The server returned an unexpected response (HTTP ${response.status}).`);
                     }
 
                     if (!response.ok || !data.success) {
-                        throw new Error(
-                            data.message || 'Unable to answer this question.'
-                        );
+                        throw new Error(data.message || 'Unable to answer this question.');
                     }
 
+                    // Model output is rendered as text only — never as HTML.
                     answerText.textContent = data.answer;
                     sourceList.replaceChildren();
 
                     for (const source of (data.sources || [])) {
-                        const item = document.createElement('p');
-                        item.className = 'text-sm text-slate-600';
-                        item.textContent =
-                            `${source.title || 'Document'} — ` +
-                            `${source.filename || ''} — ` +
-                            `Page ${source.page ?? 'unknown'}`;
+                        const item = document.createElement('li');
+
+                        const page = document.createElement('span');
+                        page.className = 'tag';
+                        page.textContent = `p. ${source.page ?? '?'}`;
+
+                        const label = document.createElement('span');
+                        label.textContent = `${source.title || 'Document'}` +
+                            (source.filename ? ` — ${source.filename}` : '');
+
+                        item.append(page, label);
                         sourceList.appendChild(item);
                     }
 
-                    answerPanel.classList.remove('hidden');
+                    sourceBlock.hidden = sourceList.children.length === 0;
+                    answerPanel.hidden = false;
                 } catch (error) {
-                    questionError.textContent =
-                        error.message || 'A network error occurred.';
-                    questionError.classList.remove('hidden');
+                    questionError.textContent = error.message || 'A network error occurred.';
+                    questionError.hidden = false;
                 } finally {
                     askButton.disabled = false;
                     askButton.textContent = 'Ask AI';
                 }
             });
-        }
+        })();
     </script>
-</body>
-
-</html>
+@endpush

@@ -127,7 +127,7 @@ class PersonVoiceController extends Controller
             });
 
             return redirect()
-                ->route('recognized.person', $person)
+                ->route('people.show', $person)
                 ->with(
                     'success',
                     'Voice sample successfully registered.'
@@ -179,7 +179,7 @@ class PersonVoiceController extends Controller
         }
 
         return redirect()
-            ->route('recognized.person', $person)
+            ->route('people.show', $person)
             ->with(
                 'success',
                 'Voice sample successfully removed.'

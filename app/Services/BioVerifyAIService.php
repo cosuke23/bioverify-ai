@@ -74,6 +74,27 @@ class BioVerifyAIService
     }
 
     /**
+     * Fast detection-only analysis of a camera frame: face position,
+     * size, head yaw, brightness, sharpness and passive liveness score.
+     * Used for live capture guidance; never compares identities.
+     */
+    public function analyzeFace(UploadedFile $image): array
+    {
+        $contents = $this->readFile($image);
+
+        return $this->sendRequest(
+            fn() => Http::timeout(10)
+                ->attach(
+                    'face_image',
+                    $contents,
+                    'frame.jpg'
+                )
+                ->post($this->baseUrl . '/face/analyze'),
+            'The AI service could not analyze the camera frame.'
+        );
+    }
+
+    /**
      * Generate an embedding from a voice recording.
      */
     public function generateVoiceEmbedding(

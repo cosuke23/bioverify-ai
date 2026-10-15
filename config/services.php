@@ -57,6 +57,34 @@ return [
         // the same face being enrolled under two different people.
         'face_match_threshold' => 0.50,
 
+        // Face liveness for the public verification kiosk. A deterrent
+        // against printed photos and phone screens, not a certified
+        // presentation-attack detection system. Administrators testing
+        // in the recognition console are exempt.
+        'face_liveness' => [
+            'required' => env('FACE_LIVENESS_REQUIRED', true),
+            // Passive model score needed for a frame to count as live.
+            'threshold' => (float) env('FACE_LIVENESS_THRESHOLD', 0.80),
+            // Good-quality frames that must score live during one attempt.
+            'min_live_frames' => 2,
+            // Head-turn challenge: face forward, turn to either side, return.
+            'yaw_frontal' => 0.12,
+            'yaw_turned' => 0.30,
+            // Seconds an attempt may take, and how long a pass stays valid.
+            'attempt_seconds' => 90,
+            'valid_seconds' => 60,
+        ],
+
+        // Capture guidance limits (frame-relative face size, 0-255 brightness).
+        'face_capture' => [
+            'min_face_width' => 0.18,
+            'max_face_width' => 0.60,
+            'max_center_offset' => 0.14,
+            'min_brightness' => 90,
+            'max_brightness' => 225,
+            'min_sharpness' => 60,
+        ],
+
         // Must match VOICE_MODEL_VERSION / embedding size in python-ai/main.py.
         // Voice samples enrolled with another model are not compared.
         'voice_model_version' => 'wespeaker-resnet34-lm-v1',

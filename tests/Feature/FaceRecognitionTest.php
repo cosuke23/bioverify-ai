@@ -14,6 +14,14 @@ class FaceRecognitionTest extends TestCase
     use BuildsBiometricFixtures;
     use RefreshDatabase;
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // These tests cover matching; liveness has its own tests.
+        config(['services.bioverify_ai.face_liveness.required' => false]);
+    }
+
     public function test_it_returns_422_when_no_faces_are_registered(): void
     {
         Http::fake();

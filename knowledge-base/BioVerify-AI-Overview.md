@@ -800,6 +800,19 @@ Invoke-RestMethod -Method Post http://127.0.0.1:8002/documents/reembed
 
 Face enrollment rejects unclear or small faces and a face already enrolled under a different person. Every face and voice attempt, matched or not, is written to `recognition_logs`.
 
+### Face verification kiosk and liveness
+
+The public kiosk (`/biometric-login`) guides the person in real time. About twice a second the browser sends a small camera frame to `POST /face-recognition/analyze`, which calls the face service's detection-only `/face/analyze` and returns live checks (one face, centred, distance, lighting, sharpness) and plain-language guidance. Nothing is compared against enrolled faces during guidance.
+
+Before a guest may run face recognition, the server-side session must record a liveness pass:
+
+1. Look at the camera, turn the head to either side, then face the camera again (head angle from facial landmarks).
+2. At least two good-quality frames must score as live with InsightFace's passive anti-spoofing model (`~/.insightface/addons/liveness.onnx`, threshold `FACE_LIVENESS_THRESHOLD`, default 0.80).
+
+A pass is valid for 60 seconds and covers one recognition attempt. Attempts without a pass are refused (HTTP 428) and logged. Guests never see raw similarity or liveness scores; signed-in administrators using the Recognition Console are exempt from the liveness gate and see full diagnostics.
+
+Poor lighting lowers the liveness score of real faces, so the kiosk asks for more light before liveness is evaluated. Liveness is a deterrent against printed photos and phone screens, not a certified presentation-attack detection system. Settings live in `config/services.php` under `bioverify_ai.face_liveness` and `bioverify_ai.face_capture`; `FACE_LIVENESS_REQUIRED=false` disables the gate.
+
 ### Obsidian vault
 
 `C:\xampp\htdocs\bioverify-ai\knowledge-base`

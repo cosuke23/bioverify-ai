@@ -59,7 +59,7 @@ class VoiceRecognitionTest extends TestCase
 
         $this->post(route('people.voices.store', $person), [
             'voice_audio' => $this->fakeVoiceAudio(),
-        ])->assertRedirect(route('recognized.person', $person));
+        ])->assertRedirect(route('people.show', $person));
 
         Http::assertSent(fn (Request $request) =>
             $request->url() === $this->aiUrl('/voice/embedding')

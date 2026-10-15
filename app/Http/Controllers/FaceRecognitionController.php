@@ -7,15 +7,61 @@ use App\Models\Person;
 use App\Models\PersonFace;
 use App\Models\RecognitionLog;
 use App\Services\BioVerifyAIService;
+use App\Services\FaceLivenessCheck;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Arr;
 
 class FaceRecognitionController extends Controller
 {
+    /**
+     * Live capture guidance and liveness progress for one camera frame.
+     * Never compares identities.
+     */
+    public function analyze(
+        Request $request,
+        BioVerifyAIService $aiService,
+        FaceLivenessCheck $liveness
+    ): JsonResponse {
+        $request->validate([
+            'face_image' => [
+                'required',
+                'image',
+                'mimes:jpg,jpeg,png,webp',
+                'max:2048',
+            ],
+        ]);
+
+        try {
+            $analysis = $aiService->analyzeFace($request->file('face_image'));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Face analysis is temporarily unavailable.',
+            ], 503);
+        }
+
+        $result = ['success' => true] + $liveness->evaluate($request, $analysis);
+
+        // Raw model scores stay server-side for guests so they cannot be
+        // used to tune a spoof; administrators see them for diagnostics.
+        if ($request->user()) {
+            $result['diagnostics'] = [
+                'face' => $analysis['face'] ?? null,
+                'liveness' => $analysis['liveness'] ?? null,
+                'processing_time_ms' => $analysis['processing_time_ms'] ?? null,
+            ];
+        }
+
+        return response()->json($result);
+    }
+
     public function recognize(
         Request $request,
-        BioVerifyAIService $aiService
+        BioVerifyAIService $aiService,
+        FaceLivenessCheck $liveness
     ): JsonResponse {
         $validated = $request->validate([
             'face_image' => [
@@ -25,6 +71,35 @@ class FaceRecognitionController extends Controller
                 'max:5120',
             ],
         ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Liveness gate (public kiosk only)
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$request->user() && config('services.bioverify_ai.face_liveness.required')) {
+            if (!$liveness->passed($request)) {
+                RecognitionLog::record(
+                    'Face',
+                    'Not Matched',
+                    null,
+                    null,
+                    $request->ip(),
+                    'Refused: liveness check not completed.'
+                );
+
+                return response()->json([
+                    'success' => false,
+                    'matched' => false,
+                    'code' => 'liveness_required',
+                    'message' => 'Complete the liveness check before verifying.',
+                ], 428);
+            }
+
+            // A pass covers exactly one recognition attempt.
+            $liveness->reset($request);
+        }
 
         /*
         |--------------------------------------------------------------------------

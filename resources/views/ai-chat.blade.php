@@ -1,475 +1,571 @@
-<!DOCTYPE html>
-<html lang="en">
+@extends('layouts.pcg')
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="csrf-token" content="{{ csrf_token() }}">
+@section('title', 'Ask Pong AI')
 
-    <title>Pong Pagong | PCG Knowledge Assistant</title>
+@section('crumbs')
+    <span>Knowledge</span><span aria-hidden="true">/</span><strong>Ask Pong AI</strong>
+@endsection
 
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
-
+@push('head')
     <style>
-        :root {
-            --navy: #082d55;
-            --navy-dark: #061b31;
-            --blue: #124b80;
-            --gold: #c4a45d;
-            --canvas: #f5f7fb;
-            --border: #e5eaf1;
-            --muted: #718096;
-            --sidebar-width: 280px;
-            --sidebar-collapsed-width: 78px;
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        html,
-        body {
-            width: 100%;
-            min-height: 100%;
-            margin: 0;
-        }
-
-        body {
-            font-family: Inter, "Segoe UI", Arial, sans-serif;
-            background: var(--canvas);
-            color: #1e293b;
-        }
-
-        button,
-        textarea {
-            font: inherit;
-        }
-
-        button:focus-visible,
-        a:focus-visible,
-        textarea:focus-visible {
-            outline: 3px solid #8db9ed;
-            outline-offset: 3px;
-        }
-
-        .app-shell {
-            min-height: 100vh;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            flex-shrink: 0;
-            width: var(--sidebar-width);
-            min-width: var(--sidebar-width);
-            height: 100vh;
-            overflow: hidden;
-            background: linear-gradient(165deg, #0b345d 0%, #071f39 58%, #051729 100%);
-            box-shadow: 8px 0 35px rgb(15 35 60 / 5%);
-            transition: width .25s ease, min-width .25s ease, transform .25s ease;
-            z-index: 50;
-        }
-
-        .sidebar-collapsed {
-            width: var(--sidebar-collapsed-width) !important;
-            min-width: var(--sidebar-collapsed-width) !important;
-        }
-
-        .brand-mark {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 46px;
-            height: 46px;
-            flex-shrink: 0;
-            border: 1px solid rgb(196 164 93 / 80%);
-            border-radius: 14px;
-            background: rgb(255 255 255 / 7%);
-            color: #fff;
-            font-size: 13px;
-            font-weight: 900;
-            letter-spacing: 1px;
-        }
-
-        .gold-line {
-            height: 2px;
-            flex-shrink: 0;
-            background: linear-gradient(90deg, var(--gold), rgb(196 164 93 / 35%), transparent);
-        }
-
-        .nav-link {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            min-height: 46px;
-            padding: 11px 13px;
-            border: 1px solid transparent;
-            border-radius: 12px;
-            color: #c7d5e5;
-            font-size: 13px;
-            font-weight: 600;
-            text-decoration: none;
-            white-space: nowrap;
-            transition: background .2s ease, color .2s ease, border-color .2s ease;
-        }
-
-        .nav-link:hover {
-            background: rgb(255 255 255 / 7%);
-            color: white;
-        }
-
-        .nav-link.active {
-            border-color: rgb(196 164 93 / 38%);
-            background: linear-gradient(100deg, rgb(255 255 255 / 12%), rgb(255 255 255 / 5%));
-            color: white;
-        }
-
-        .nav-icon {
-            display: flex;
-            width: 23px;
-            height: 23px;
-            flex-shrink: 0;
-            align-items: center;
-            justify-content: center;
-            border-radius: 7px;
-            color: #c5d6e9;
-            font-size: 18px;
-        }
-
-        .nav-link.active .nav-icon {
-            color: #f0d391;
-        }
-
-        .section-label {
-            color: #92abc7;
-            font-size: 10px;
-            font-weight: 800;
-            letter-spacing: .17em;
-            text-transform: uppercase;
-        }
-
-        .service-card {
-            border: 1px solid rgb(255 255 255 / 10%);
-            background: rgb(255 255 255 / 5%);
-        }
-
-        .service-dot {
-            position: relative;
-            display: inline-flex;
-            width: 8px;
-            height: 8px;
-            flex-shrink: 0;
-            border-radius: 50%;
-            background: #34d399;
-        }
-
-        .service-dot::after {
-            position: absolute;
-            inset: -4px;
-            border: 1px solid rgb(52 211 153 / 30%);
-            border-radius: 50%;
-            content: "";
-        }
-
-        .sidebar-label {
-            min-width: 0;
-            transition: opacity .15s ease;
-        }
-
-        .sidebar-collapsed .sidebar-label,
-        .sidebar-collapsed .nav-badge {
+        /* The full-page assistant replaces the floating widget on this page. */
+        #pong-widget {
             display: none !important;
         }
 
-        .sidebar-collapsed .sidebar-brand {
-            padding: 18px 0;
+        .chat-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 300px;
+            gap: 22px;
+            align-items: start;
         }
 
-        .sidebar-collapsed .sidebar-brand>div {
-            justify-content: center;
-        }
-
-        .sidebar-collapsed .sidebar-workspace {
-            justify-content: center;
-            padding: 14px 0;
-        }
-
-        .sidebar-collapsed .nav-link {
-            justify-content: center;
-            gap: 0;
-            padding: 12px 0;
-            margin-bottom: 4px;
-        }
-
-        .sidebar-collapsed .sidebar-nav {
-            padding-right: 10px;
-            padding-left: 10px;
-        }
-
-        .sidebar-collapsed .service-card {
-            padding: 14px 0;
-            border-color: transparent;
-            background: transparent;
+        /* Conversation card ------------------------------------ */
+        .chat-card {
             display: flex;
-            justify-content: center;
+            flex-direction: column;
+            height: clamp(560px, calc(100vh - 230px), 900px);
+            overflow: hidden;
         }
 
-        .sidebar-collapsed .sidebar-footer {
-            padding: 14px 0;
+        .chat-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--line-soft);
+            background: linear-gradient(180deg, #fff, #fafcff);
         }
 
-        .sidebar-collapsed .sidebar-footer>div {
-            justify-content: center;
+        .pong-mark {
+            display: grid;
+            place-items: center;
+            flex: 0 0 38px;
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            background: linear-gradient(160deg, var(--pcg-blue), var(--pcg-blue-800));
+            border: 1px solid rgba(244, 197, 66, .55);
+            color: var(--pcg-gold);
         }
 
-        .sidebar-collapsed .sidebar-toggle-icon {
-            transform: rotate(180deg);
+        .pong-mark svg {
+            width: 20px;
+            height: 20px;
         }
 
-        .topbar {
-            background: rgb(255 255 255 / 94%);
-            backdrop-filter: blur(16px);
+        .chat-head-title {
+            font-family: var(--font-display);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1;
         }
 
-        .eyebrow {
-            color: var(--blue);
-            font-size: 10px;
-            font-weight: 800;
-            letter-spacing: .17em;
+        .chat-head-sub {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 3px;
+            font-size: 12.5px;
+            color: var(--muted);
+        }
+
+        .chat-state-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--ok);
+        }
+
+        .chat-head[data-busy='true'] .chat-state-dot {
+            background: var(--pcg-gold-600);
+            animation: chat-blink 1s ease-in-out infinite;
+        }
+
+        .chat-head-actions {
+            margin-left: auto;
+        }
+
+        .chat-log {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px 24px 8px;
+            background:
+                radial-gradient(70% 40% at 100% 0%, rgba(0, 51, 160, .035), transparent 70%),
+                var(--canvas);
+            scroll-behavior: smooth;
+        }
+
+        /* Empty state ------------------------------------------ */
+        .chat-empty {
+            max-width: 760px;
+            margin: 8px auto 24px;
+        }
+
+        .chat-empty[hidden] {
+            display: none;
+        }
+
+        .chat-empty-head {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+            margin-bottom: 22px;
+        }
+
+        .chat-empty-head .pong-mark {
+            flex-basis: 52px;
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            box-shadow: 0 10px 24px rgba(0, 51, 160, .22);
+        }
+
+        .chat-empty-head .pong-mark svg {
+            width: 26px;
+            height: 26px;
+        }
+
+        .chat-empty h2 {
+            margin: 4px 0 0;
+            font-family: var(--font-display);
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1;
+            color: var(--ink);
+        }
+
+        .chat-empty p.lede {
+            margin: 8px 0 0;
+            color: var(--muted);
+            max-width: 560px;
+        }
+
+        .prompt-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .prompt-card {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            width: 100%;
+            padding: 16px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--surface);
+            color: var(--ink);
+            font: inherit;
+            text-align: left;
+            cursor: pointer;
+            transition: border-color .15s, box-shadow .15s, transform .15s;
+        }
+
+        .prompt-card:hover:not(:disabled) {
+            border-color: var(--pcg-blue);
+            box-shadow: var(--shadow);
+            transform: translateY(-2px);
+        }
+
+        .prompt-card:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .prompt-icon {
+            display: grid;
+            place-items: center;
+            flex: 0 0 36px;
+            width: 36px;
+            height: 36px;
+            border-radius: 9px;
+            background: var(--info-soft);
+            color: var(--pcg-blue);
+        }
+
+        .prompt-icon.is-gold {
+            background: var(--pcg-gold-soft);
+            color: #8a6406;
+        }
+
+        .prompt-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .prompt-title {
+            display: block;
+            font-weight: 600;
+            font-size: 14.5px;
+        }
+
+        .prompt-desc {
+            display: block;
+            margin-top: 3px;
+            color: var(--muted);
+            font-size: 13px;
+            line-height: 1.45;
+        }
+
+        /* Messages --------------------------------------------- */
+        .msg {
+            display: flex;
+            gap: 12px;
+            max-width: 820px;
+            margin: 0 auto 20px;
+            animation: chat-in .2s ease-out;
+        }
+
+        .msg-user {
+            flex-direction: row-reverse;
+        }
+
+        .msg-avatar {
+            display: grid;
+            place-items: center;
+            flex: 0 0 34px;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            font-family: var(--font-display);
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: .04em;
+        }
+
+        .msg-user .msg-avatar {
+            background: var(--line-soft);
+            border: 1px solid var(--line);
+            color: var(--ink-2);
+        }
+
+        .msg-body {
+            min-width: 0;
+            max-width: min(680px, 100%);
+        }
+
+        .msg-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        .msg-user .msg-meta {
+            justify-content: flex-end;
+        }
+
+        .msg-meta strong {
+            color: var(--ink-2);
+            font-weight: 600;
+        }
+
+        .msg-meta .mono {
+            font-size: 11px;
+        }
+
+        .bubble {
+            padding: 14px 16px;
+            border-radius: 4px 14px 14px 14px;
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-left: 3px solid var(--pcg-blue);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .msg-user .bubble {
+            border: 0;
+            border-radius: 14px 4px 14px 14px;
+            background: var(--pcg-blue);
+            color: #fff;
+            box-shadow: 0 6px 16px rgba(0, 51, 160, .18);
+        }
+
+        .bubble-text {
+            margin: 0;
+            font-size: 14.5px;
+            line-height: 1.7;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+        }
+
+        .bubble.is-loading .bubble-text {
+            color: var(--muted);
+        }
+
+        .typing-dot {
+            display: inline-block;
+            width: 5px;
+            height: 5px;
+            margin-left: 4px;
+            border-radius: 50%;
+            background: var(--pcg-blue);
+            vertical-align: middle;
+            animation: chat-typing 1.2s ease-in-out infinite;
+        }
+
+        .typing-dot:nth-of-type(2) {
+            animation-delay: .15s;
+        }
+
+        .typing-dot:nth-of-type(3) {
+            animation-delay: .3s;
+        }
+
+        .cites {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px dashed var(--line);
+        }
+
+        .cites-label {
+            margin: 0 0 7px;
+            font-family: var(--font-display);
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: .14em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .cite-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .cite {
+            display: inline-flex;
+            align-items: center;
+            max-width: 100%;
+            overflow: hidden;
+            border: 1px solid var(--line);
+            border-radius: 999px;
+            background: var(--canvas);
+            font-size: 12px;
+            color: var(--ink-2);
+        }
+
+        .cite-kind {
+            flex: 0 0 auto;
+            padding: 3px 8px;
+            background: var(--info-soft);
+            color: var(--pcg-blue);
+            font-family: var(--font-mono);
+            font-size: 10.5px;
+            font-weight: 500;
+            letter-spacing: .04em;
             text-transform: uppercase;
         }
 
-        .hero-card {
-            position: relative;
+        .cite-kind.is-pdf {
+            background: var(--pcg-gold-soft);
+            color: #8a6406;
+        }
+
+        .cite-text {
+            min-width: 0;
+            padding: 3px 10px 3px 8px;
             overflow: hidden;
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            background: #fff;
-            box-shadow: 0 8px 30px rgb(15 35 60 / 3%);
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        .hero-decoration {
-            position: absolute;
-            top: -100px;
-            right: -70px;
-            width: 280px;
-            height: 280px;
-            border: 1px solid rgb(18 75 128 / 7%);
-            border-radius: 50%;
-            pointer-events: none;
-        }
-
-        .hero-decoration::after {
-            position: absolute;
-            inset: 28px;
-            border: 1px solid rgb(18 75 128 / 7%);
-            border-radius: 50%;
-            content: "";
-        }
-
-        .hero-icon {
+        .msg-tools {
             display: flex;
-            width: 60px;
-            height: 60px;
-            flex-shrink: 0;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        .msg-tool {
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
-            border: 1px solid rgb(196 164 93 / 45%);
-            border-radius: 19px;
-            background: linear-gradient(145deg, #103f70, #082747);
-            box-shadow: 0 8px 20px rgb(8 45 85 / 15%);
-            color: white;
+            gap: 5px;
+            padding: 3px 8px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: var(--muted);
+            font: 500 12px var(--font-body);
+            cursor: pointer;
         }
 
-        .suggestion-card {
-            display: block;
-            width: 100%;
-            min-height: 120px;
-            border: 1px solid var(--border);
-            border-radius: 17px;
-            background: white;
-            padding: 18px;
-            text-align: left;
-            transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+        .msg-tool:hover {
+            background: var(--line-soft);
+            color: var(--pcg-blue);
         }
 
-        .suggestion-card:hover:not(:disabled) {
-            transform: translateY(-3px);
-            border-color: #b9cadd;
-            box-shadow: 0 12px 26px rgb(8 45 85 / 7%);
+        .msg-tool svg {
+            width: 13px;
+            height: 13px;
         }
 
-        .suggestion-card:disabled {
-            cursor: not-allowed;
-            opacity: .55;
+        /* Composer --------------------------------------------- */
+        .composer-wrap {
+            padding: 14px 20px 16px;
+            border-top: 1px solid var(--line);
+            background: var(--surface);
         }
 
-        .suggestion-icon {
-            display: flex;
-            width: 42px;
-            height: 42px;
-            flex-shrink: 0;
-            align-items: center;
-            justify-content: center;
-            border-radius: 13px;
-            font-size: 20px;
+        .chat-error {
+            margin-bottom: 10px;
+        }
+
+        .chat-error[hidden] {
+            display: none;
         }
 
         .composer {
-            border: 1px solid #dce3ec;
-            border-radius: 20px;
-            background: white;
-            box-shadow: 0 8px 30px rgb(15 35 60 / 5%);
-            transition: border-color .2s ease, box-shadow .2s ease;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: var(--surface);
+            transition: border-color .15s, box-shadow .15s;
         }
 
         .composer:focus-within {
-            border-color: #8ca9c8;
-            box-shadow: 0 0 0 4px rgb(18 75 128 / 7%);
+            border-color: var(--pcg-blue);
+            box-shadow: 0 0 0 4px rgba(0, 51, 160, .1);
         }
 
         .composer textarea {
             display: block;
             width: 100%;
-            resize: vertical;
+            min-height: 52px;
+            max-height: 180px;
+            padding: 14px 16px 6px;
             border: 0;
             outline: 0;
+            resize: none;
             background: transparent;
-            color: #1e293b;
-            font-size: 14px;
-            line-height: 1.7;
+            color: var(--ink);
+            font: 400 15px/1.55 var(--font-body);
         }
 
         .composer textarea::placeholder {
-            color: #9aa7b8;
+            color: #94a3b8;
         }
 
-        .send-button {
-            display: inline-flex;
-            min-height: 42px;
+        .composer-bar {
+            display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            justify-content: center;
-            gap: 9px;
-            border: 0;
-            border-radius: 12px;
-            background: var(--navy);
-            padding: 0 18px;
-            color: white;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 6px 8px 8px 16px;
+        }
+
+        .composer-hint {
             font-size: 12px;
-            font-weight: 800;
-            cursor: pointer;
-            transition: background .2s ease, transform .2s ease;
+            color: var(--muted);
         }
 
-        .send-button:hover:not(:disabled) {
-            transform: translateY(-1px);
-            background: var(--blue);
-        }
-
-        .send-button:disabled {
-            cursor: not-allowed;
-            opacity: .6;
-        }
-
-        .message-row {
-            display: flex;
-            width: 100%;
-            max-width: 850px;
-            gap: 12px;
-            margin: 0 auto 24px;
-            animation: message-in .2s ease-out;
-        }
-
-        .message-avatar {
-            display: flex;
-            width: 38px;
-            height: 38px;
-            flex-shrink: 0;
-            align-items: center;
-            justify-content: center;
-            border-radius: 13px;
-            font-size: 10px;
-            font-weight: 900;
-        }
-
-        .assistant-avatar {
-            border: 1px solid rgb(196 164 93 / 40%);
-            background: var(--navy);
-            color: white;
-        }
-
-        .user-avatar {
-            background: #e2e8f0;
-            color: #334155;
-        }
-
-        .message-bubble {
-            min-width: 0;
-            flex: 1;
-            border: 1px solid var(--border);
-            border-radius: 4px 18px 18px 18px;
-            background: white;
-            padding: 18px 20px;
-            box-shadow: 0 3px 12px rgb(15 35 60 / 3%);
-        }
-
-        .user-bubble {
-            border-color: var(--blue);
-            border-radius: 18px 4px 18px 18px;
-            background: var(--blue);
-            color: white;
-        }
-
-        .message-content {
-            overflow-wrap: anywhere;
-            white-space: pre-wrap;
-            font-size: 14px;
-            line-height: 1.85;
-        }
-
-        .typing-dot {
+        .composer-hint kbd {
             display: inline-block;
-            padding: 0 2px;
-            animation: typing 1.2s infinite ease-in-out;
+            min-width: 20px;
+            padding: 1px 6px;
+            border: 1px solid var(--line);
+            border-bottom-width: 2px;
+            border-radius: 5px;
+            background: var(--canvas);
+            color: var(--ink-2);
+            font-family: var(--font-mono);
+            font-size: 11px;
         }
 
-        .typing-dot:nth-child(2) {
-            animation-delay: .15s;
+        .composer-count {
+            margin-left: 8px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            color: #94a3b8;
         }
 
-        .typing-dot:nth-child(3) {
-            animation-delay: .3s;
+        .composer-count.is-near {
+            color: var(--warn);
         }
 
-        #sidebarOverlay {
-            visibility: hidden;
-            opacity: 0;
-            transition: opacity .25s ease, visibility .25s ease;
+        .composer-note {
+            margin: 8px 0 0;
+            text-align: center;
+            font-size: 11.5px;
+            color: var(--muted);
         }
 
-        #sidebarOverlay.overlay-visible {
-            visibility: visible;
-            opacity: 1;
+        /* Aside ------------------------------------------------ */
+        .chat-aside {
+            display: grid;
+            gap: 16px;
         }
 
-        @keyframes typing {
-
-            0%,
-            60%,
-            100% {
-                opacity: .3;
-                transform: translateY(0);
-            }
-
-            30% {
-                opacity: 1;
-                transform: translateY(-4px);
-            }
+        .aside-list {
+            display: grid;
+            gap: 10px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            font-size: 13.5px;
         }
 
-        @keyframes message-in {
+        .aside-list li {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .aside-list svg {
+            flex: 0 0 18px;
+            width: 18px;
+            height: 18px;
+            margin-top: 2px;
+            color: var(--pcg-blue);
+        }
+
+        .aside-list small {
+            display: block;
+            color: var(--muted);
+            font-size: 12.5px;
+        }
+
+        .ask-link {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--line);
+            border-radius: var(--radius-sm);
+            background: var(--surface);
+            color: var(--ink-2);
+            font: 500 13.5px/1.35 var(--font-body);
+            text-align: left;
+            cursor: pointer;
+            transition: border-color .15s, color .15s;
+        }
+
+        .ask-link:hover:not(:disabled) {
+            border-color: var(--pcg-blue);
+            color: var(--pcg-blue);
+        }
+
+        .ask-link:disabled {
+            opacity: .55;
+            cursor: not-allowed;
+        }
+
+        .ask-link svg {
+            flex: 0 0 14px;
+            width: 14px;
+            height: 14px;
+        }
+
+        @keyframes chat-in {
             from {
                 opacity: 0;
                 transform: translateY(5px);
@@ -477,576 +573,348 @@
 
             to {
                 opacity: 1;
-                transform: translateY(0);
-            }
-        }
-
-        /* Desktop layout */
-        @media (min-width: 768px) {
-            .sidebar {
-                position: sticky;
-                top: 0;
-                align-self: flex-start;
-                transform: none !important;
-            }
-
-            #sidebarOverlay {
-                display: none !important;
-            }
-
-            #mobileMenuButton {
-                display: none !important;
-            }
-        }
-
-        /* Mobile drawer */
-        @media (max-width: 767px) {
-            .sidebar {
-                position: fixed;
-                inset: 0 auto 0 0;
-                width: min(300px, 86vw);
-                min-width: min(300px, 86vw);
-                height: 100dvh;
-                transform: translateX(-105%);
-                z-index: 50;
-            }
-
-            .sidebar.sidebar-open {
-                transform: translateX(0) !important;
-            }
-
-            .sidebar-collapsed {
-                width: min(300px, 86vw) !important;
-                min-width: min(300px, 86vw) !important;
-            }
-
-            /* Always show labels in the mobile drawer. */
-            .sidebar .sidebar-label,
-            .sidebar .nav-badge {
-                display: block !important;
-            }
-
-            .sidebar .sidebar-brand {
-                padding: 24px 20px;
-            }
-
-            .sidebar .sidebar-brand>div {
-                justify-content: flex-start;
-            }
-
-            .sidebar .sidebar-workspace {
-                justify-content: space-between;
-                padding: 20px 20px 8px;
-            }
-
-            .sidebar .nav-link {
-                justify-content: flex-start;
-                gap: 12px;
-                padding: 11px 13px;
-            }
-
-            .sidebar .sidebar-nav {
-                padding-right: 12px;
-                padding-left: 12px;
-            }
-
-            .sidebar .service-card {
-                display: block;
-                padding: 16px;
-                border-color: rgb(255 255 255 / 10%);
-                background: rgb(255 255 255 / 5%);
-            }
-
-            .sidebar .sidebar-footer {
-                padding: 16px 20px;
-            }
-
-            .sidebar .sidebar-footer>div {
-                justify-content: flex-start;
-            }
-
-            .sidebar .sidebar-toggle-icon {
                 transform: none;
             }
+        }
 
-            .hero-card {
-                border-radius: 19px;
+        @keyframes chat-typing {
+
+            0%,
+            60%,
+            100% {
+                opacity: .25;
+                transform: translateY(0);
             }
 
-            .suggestion-card {
-                min-height: 104px;
-                padding: 14px;
+            30% {
+                opacity: 1;
+                transform: translateY(-3px);
+            }
+        }
+
+        @keyframes chat-blink {
+            50% {
+                opacity: .3;
+            }
+        }
+
+        @media (max-width: 1100px) {
+            .chat-grid {
+                grid-template-columns: minmax(0, 1fr);
             }
 
-            .message-bubble {
-                padding: 15px;
+            .chat-aside {
+                grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            }
+        }
+
+        @media (max-width: 640px) {
+            .chat-card {
+                height: calc(100dvh - 150px);
+                min-height: 480px;
+            }
+
+            .chat-log {
+                padding: 16px 12px 4px;
+            }
+
+            .prompt-grid {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+            .chat-empty h2 {
+                font-size: 26px;
+            }
+
+            .msg-avatar {
+                display: none;
+            }
+
+            .composer-wrap {
+                padding: 10px 12px 12px;
+            }
+
+            .composer-hint {
+                display: none;
             }
         }
 
         @media (prefers-reduced-motion: reduce) {
 
-            *,
-            *::before,
-            *::after {
-                animation-duration: .01ms !important;
-                transition-duration: .01ms !important;
-                scroll-behavior: auto !important;
+            .msg,
+            .typing-dot,
+            .chat-head[data-busy='true'] .chat-state-dot {
+                animation: none;
+            }
+
+            .chat-log {
+                scroll-behavior: auto;
             }
         }
     </style>
-</head>
+@endpush
 
-<body>
-    <div class="app-shell flex">
-
-        <!-- One overlay only -->
-        <div id="sidebarOverlay" class="fixed inset-0 z-40 bg-slate-950/60 md:hidden" aria-hidden="true"></div>
-
-        <!-- Sidebar -->
-        <aside id="pcgSidebar" class="sidebar text-white">
-
-            <div class="sidebar-brand px-5 py-6">
-                <div class="flex items-center gap-3">
-                    <div class="brand-mark">PCG</div>
-                    <div class="sidebar-label min-w-0">
-                        <h1 class="whitespace-nowrap text-sm font-black tracking-[.13em]">Pong Pagong</h1>
-                        <p class="mt-1 whitespace-nowrap text-xs text-blue-200">Knowledge Assistant</p>
-                        <p
-                            class="mt-2 whitespace-nowrap text-[9px] font-bold uppercase tracking-[.13em] text-amber-300">
-                            Personnel Support Workspace
-                        </p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="gold-line"></div>
-
-            <div class="sidebar-workspace flex items-center justify-between px-5 pb-2 pt-5">
-                <p class="sidebar-label section-label">Workspace</p>
-
-                <button id="sidebarToggle" type="button"
-                    class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-blue-100 transition hover:bg-white/10 hover:text-white"
-                    aria-label="Collapse sidebar" aria-expanded="true" title="Collapse sidebar">
-                    <svg class="sidebar-toggle-icon h-4 w-4 transition-transform duration-300" viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <path d="m15 18-6-6 6-6" />
-                    </svg>
-                </button>
-            </div>
-
-            <nav class="sidebar-nav flex-1 space-y-1 overflow-x-hidden overflow-y-auto px-3 pb-5">
-                <a href="{{ route('ai-chat.index') }}" class="nav-link active" aria-current="page" title="Pong Pagong">
-                    <span class="nav-icon">✳</span>
-                    <span class="sidebar-label nav-text">Pong Pagong</span>
-                    <span
-                        class="nav-badge ml-auto rounded-md bg-white/10 px-2 py-1 text-[9px] font-bold text-amber-200">AI</span>
-                </a>
-                <a href="{{ route('biometric.login') }}" class="nav-link" title="Biometric Login">
-                    <span class="nav-icon">⌘</span>
-                    <span class="sidebar-label nav-text">Biometric Login</span>
-                </a>
-
-                <a href="{{ route('face.recognition.index') }}" class="nav-link" title="Face Recognition">
-                    <span class="nav-icon">◎</span>
-                    <span class="sidebar-label nav-text">Face Recognition</span>
-                </a>
-
-                <a href="{{ route('people.index') }}" class="nav-link" title="Personnel Records">
-                    <span class="nav-icon">♙</span>
-                    <span class="sidebar-label nav-text">Personnel Records</span>
-                </a>
-
-                <div class="sidebar-label px-3 pb-3 pt-9">
-                    <p class="section-label">Environment</p>
-                </div>
-
-                <div class="service-card mx-1 rounded-2xl p-4">
-                    <div class="flex items-center gap-3">
-                        <span class="service-dot"></span>
-                        <div class="sidebar-label min-w-0">
-                            <p class="whitespace-nowrap text-xs font-bold text-white">AI Workspace</p>
-                            <p class="mt-1 whitespace-nowrap text-[10px] text-blue-200">Configured service</p>
-                        </div>
-                    </div>
-
-                    <p class="sidebar-label mt-4 text-[11px] leading-5 text-blue-100/70">
-                        Pong Pagong uses your configured AI service and searchable knowledge base.
-                    </p>
-
-                    <div class="sidebar-label mt-4 border-t border-white/10 pt-3">
-                        <p class="text-[10px] font-bold uppercase tracking-wider text-amber-200">Security reminder</p>
-                        <p class="mt-2 text-[11px] leading-5 text-blue-100/70">
-                            Never submit passwords, classified material, or unnecessary personal and biometric data.
-                        </p>
-                    </div>
-                </div>
-            </nav>
-
-            <div class="sidebar-footer border-t border-white/10 px-5 py-4">
-                <div class="flex items-center gap-2">
-                    <span
-                        class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-xs font-bold text-amber-200">P</span>
-                    <div class="sidebar-label min-w-0">
-                        <p class="whitespace-nowrap text-[11px] font-bold text-white">Pong Pagong</p>
-                        <p class="mt-1 whitespace-nowrap text-[9px] text-blue-200/60">Knowledge &amp; technical support
-                        </p>
-                    </div>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main workspace -->
-        <main class="flex min-h-screen min-w-0 flex-1 flex-col">
-
-            <header class="topbar sticky top-0 z-30 border-b border-slate-200/80">
-                <div class="flex min-h-[76px] items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-9">
-                    <div class="flex min-w-0 items-center gap-3">
-                        <button id="mobileMenuButton" type="button" aria-label="Open navigation" aria-expanded="false"
-                            aria-controls="pcgSidebar"
-                            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-lg text-slate-700 md:hidden">
-                            <span id="menuIcon" aria-hidden="true">☰</span>
-                        </button>
-
-                        <div class="min-w-0">
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h2 class="text-base font-black tracking-tight text-slate-900 sm:text-lg">Pong Pagong
-                                </h2>
-                                <span
-                                    class="hidden rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[9px] font-extrabold uppercase tracking-wider text-blue-800 sm:inline-block">
-                                    Knowledge Retrieval
-                                </span>
-                            </div>
-                            <p class="mt-1 truncate text-xs text-slate-500 sm:text-sm">
-                                Your technical and knowledge support workspace
-                            </p>
-                        </div>
-                    </div>
-
-                    <div
-                        class="flex shrink-0 items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2">
-                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
-                        <div class="hidden sm:block">
-                            <p class="text-[11px] font-extrabold text-emerald-800">Local AI</p>
-                            <p class="mt-0.5 text-[9px] text-emerald-700">Configured environment</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="gold-line"></div>
-            </header>
-
-            <!-- Conversation -->
-            <section id="chatMessages" class="flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-8 lg:px-9"
-                aria-label="Conversation" aria-live="polite" aria-relevant="additions text">
-
-                <div id="welcomePanel" class="mx-auto max-w-[850px]">
-                    <div class="hero-card">
-                        <div class="hero-decoration"></div>
-
-                        <div class="relative border-b border-slate-100 px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
-                            <div class="flex flex-col gap-5 sm:flex-row sm:items-start">
-                                <div class="hero-icon">
-                                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none"
-                                        stroke="currentColor" stroke-width="1.7" stroke-linecap="round"
-                                        stroke-linejoin="round" aria-hidden="true">
-                                        <path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-2-5.8L4 11l6-2.2L12 3z" />
-                                        <path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9L19 15z" />
-                                    </svg>
-                                </div>
-
-                                <div class="relative min-w-0">
-                                    <p class="eyebrow">Your knowledge, one conversation away</p>
-                                    <h3
-                                        class="mt-3 text-2xl font-black leading-tight tracking-tight text-slate-900 sm:text-3xl lg:text-[38px]">
-                                        What can I help you solve?
-                                    </h3>
-                                    <p class="mt-4 max-w-xl text-sm leading-7 text-slate-500">
-                                        Welcome to Pong Pagong. Explore technical documentation, understand your
-                                        application
-                                        architecture, search your knowledge base, and work through development
-                                        questions.
-                                    </p>
-
-                                    <div class="mt-5 flex flex-wrap gap-2">
-                                        <span
-                                            class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600">Technical
-                                            guidance</span>
-                                        <span
-                                            class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600">Knowledge
-                                            search</span>
-                                        <span
-                                            class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600">Development
-                                            support</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
-                            <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
-                                <div>
-                                    <h4 class="text-sm font-extrabold text-slate-900">Start a conversation</h4>
-                                    <p class="mt-1 text-xs leading-5 text-slate-500">Select a topic or type your own
-                                        question below.</p>
-                                </div>
-                                <span class="text-[10px] font-bold uppercase tracking-[.12em] text-slate-400">Quick
-                                    prompts</span>
-                            </div>
-
-                            <div class="grid gap-3 sm:grid-cols-2">
-                                <button type="button" class="suggestion-card"
-                                    data-prompt="Explain the architecture and technologies used in the BioVerify AI project.">
-                                    <div class="flex items-start gap-3">
-                                        <span class="suggestion-icon bg-blue-50 text-blue-800">⌘</span>
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block text-sm font-extrabold text-slate-800">Understand the
-                                                System</span>
-                                            <span class="mt-2 block text-xs leading-5 text-slate-500">Architecture,
-                                                Laravel, Python, and integrations</span>
-                                        </span>
-                                        <span class="pt-1 text-slate-300">↗</span>
-                                    </div>
-                                </button>
-
-                                <button type="button" class="suggestion-card"
-                                    data-prompt="Explain how retrieval-augmented generation (RAG) works in my knowledge base, including document ingestion, retrieval, and answer generation.">
-                                    <div class="flex items-start gap-3">
-                                        <span class="suggestion-icon bg-amber-50 text-amber-800">▤</span>
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block text-sm font-extrabold text-slate-800">Explore the
-                                                Knowledge Base</span>
-                                            <span class="mt-2 block text-xs leading-5 text-slate-500">Document search,
-                                                RAG, and answer generation</span>
-                                        </span>
-                                        <span class="pt-1 text-slate-300">↗</span>
-                                    </div>
-                                </button>
-
-                                <button type="button" class="suggestion-card"
-                                    data-prompt="Explain the face and voice recognition components in BioVerify AI, their workflows, and important biometric security considerations.">
-                                    <div class="flex items-start gap-3">
-                                        <span class="suggestion-icon bg-violet-50 text-violet-800">◎</span>
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block text-sm font-extrabold text-slate-800">Biometric
-                                                Workflows</span>
-                                            <span class="mt-2 block text-xs leading-5 text-slate-500">Face recognition,
-                                                voice matching, and security</span>
-                                        </span>
-                                        <span class="pt-1 text-slate-300">↗</span>
-                                    </div>
-                                </button>
-
-                                <button type="button" class="suggestion-card"
-                                    data-prompt="Review the next development priorities for BioVerify AI, including reliability, access control, audit logging, testing, and deployment readiness.">
-                                    <div class="flex items-start gap-3">
-                                        <span class="suggestion-icon bg-emerald-50 text-emerald-800">✓</span>
-                                        <span class="min-w-0 flex-1">
-                                            <span class="block text-sm font-extrabold text-slate-800">Plan the Next
-                                                Step</span>
-                                            <span class="mt-2 block text-xs leading-5 text-slate-500">Reliability,
-                                                security, and improvements</span>
-                                        </span>
-                                        <span class="pt-1 text-slate-300">↗</span>
-                                    </div>
-                                </button>
-                            </div>
-
-                            <div
-                                class="mt-6 flex items-start gap-3 rounded-xl border border-amber-200/80 bg-amber-50/60 p-4">
-                                <span
-                                    class="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-sm text-amber-800">i</span>
-                                <div>
-                                    <p class="text-xs font-extrabold text-slate-800">Responsible AI use</p>
-                                    <p class="mt-1 text-xs leading-5 text-slate-600">
-                                        Verify important answers against authoritative references and applicable
-                                        policies.
-                                        Do not submit credentials, classified information, or unnecessary personal and
-                                        biometric data.
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <p class="mt-5 text-center text-[10px] leading-5 text-slate-400">
-                        AI-generated information may require independent verification.
-                    </p>
-                </div>
-            </section>
-
-            <!-- Composer -->
-            <footer class="border-t border-slate-200 bg-white/95 px-4 py-4 sm:px-6 sm:py-5 lg:px-9">
-                <div class="mx-auto max-w-[850px]">
-                    <div id="errorBox"
-                        class="mb-3 hidden rounded-xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700"
-                        role="alert"></div>
-
-                    <form id="chatForm" class="composer p-2 sm:p-3">
-                        <label for="messageInput" class="sr-only">Pong Pagong a question</label>
-                        <textarea id="messageInput" name="message" rows="2" maxlength="4000"
-                            placeholder="Ask Pong Pagong anything..." class="max-h-40 min-h-[56px] px-3 py-3 sm:px-4" required></textarea>
-
-                        <div class="mt-2 flex flex-wrap items-center justify-between gap-3 px-2 pb-1">
-                            <p class="text-[10px] leading-5 text-slate-400 sm:text-[11px]">
-                                <span class="font-semibold text-slate-500">Enter</span> to send
-                                <span class="mx-1">·</span>
-                                <span class="font-semibold text-slate-500">Shift + Enter</span> for a new line
-                            </p>
-
-                            <button id="sendButton" type="submit" class="send-button">
-                                <span id="sendButtonText">Send message</span>
-                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                                    stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M22 2L11 13" />
-                                    <path d="M22 2L15 22l-4-9-9-4 20-7z" />
-                                </svg>
-                            </button>
-                        </div>
-                    </form>
-
-                    <p class="mt-3 text-center text-[10px] leading-5 text-slate-400">
-                        Pong Pagong · AI-assisted information retrieval · Verify important information independently
-                    </p>
-                </div>
-            </footer>
-        </main>
+@section('content')
+    <div class="page-head rise">
+        <div>
+            <p class="eyebrow">Knowledge · AI assistant</p>
+            <h1 class="page-title">Ask Pong AI</h1>
+            <p class="page-lede">
+                Ask about BioVerify procedures, PCG reference material and uploaded documents. Answers cite the
+                notes and PDF pages they were drawn from.
+            </p>
+        </div>
+        <span class="badge badge-info">Grounded in your knowledge base</span>
     </div>
 
+    <div class="chat-grid">
+        <section class="card chat-card rise rise-2" aria-label="Pong AI conversation">
+            <div class="chat-head" id="chatHead" data-busy="false">
+                <span class="pong-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                        stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z" />
+                        <circle cx="12" cy="7.8" r="1.4" />
+                        <path d="M12 9.2v8" />
+                        <path d="M9.5 11.5h5" />
+                        <path d="M8 14.6c.6 1.6 2.2 2.6 4 2.6s3.4-1 4-2.6" />
+                    </svg>
+                </span>
+                <div class="min-w-0">
+                    <div class="chat-head-title">Pong AI</div>
+                    <div class="chat-head-sub">
+                        <span class="chat-state-dot" aria-hidden="true"></span>
+                        <span id="chatState" role="status">Ready · Knowledge assistant</span>
+                    </div>
+                </div>
+                <div class="chat-head-actions">
+                    <button type="button" id="clearChat" class="btn btn-ghost btn-sm" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 5v14M5 12h14" />
+                        </svg>
+                        New conversation
+                    </button>
+                </div>
+            </div>
+
+            <div id="chatMessages" class="chat-log" role="log" aria-label="Conversation" aria-live="polite"
+                aria-relevant="additions text">
+
+                <div id="welcomePanel" class="chat-empty">
+                    <div class="chat-empty-head">
+                        <span class="pong-mark" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                                <path d="M8 9h8" />
+                                <path d="M8 13h5" />
+                            </svg>
+                        </span>
+                        <div>
+                            <p class="eyebrow">Mabuhay, {{ \Illuminate\Support\Str::before(trim(auth()->user()?->name ?: 'Administrator'), ' ') }}</p>
+                            <h2>What do you need to know?</h2>
+                            <p class="lede">
+                                Pong AI searches the BioVerify knowledge base and your uploaded PDFs, then answers with
+                                citations. Pick a starting point or type your own question.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="prompt-grid">
+                        <button type="button" class="prompt-card"
+                            data-prompt="Explain step by step how BioVerify AI verifies a Coast Guard member's identity at the kiosk, including the face liveness check and voice verification.">
+                            <span class="prompt-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" />
+                                    <circle cx="12" cy="11" r="3" />
+                                    <path d="M7.5 17.5a5 5 0 0 1 9 0" />
+                                </svg>
+                            </span>
+                            <span>
+                                <span class="prompt-title">How verification works</span>
+                                <span class="prompt-desc">Face match, liveness check and voice verification at the
+                                    kiosk.</span>
+                            </span>
+                        </button>
+
+                        <button type="button" class="prompt-card"
+                            data-prompt="What are the steps and quality requirements for enrolling a new PCG personnel record with face samples and a voice sample in BioVerify AI?">
+                            <span class="prompt-icon is-gold" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                                    <circle cx="9" cy="7" r="4" />
+                                    <path d="M19 8v6M22 11h-6" />
+                                </svg>
+                            </span>
+                            <span>
+                                <span class="prompt-title">Enrolling personnel</span>
+                                <span class="prompt-desc">Steps and sample quality for new face and voice
+                                    records.</span>
+                            </span>
+                        </button>
+
+                        <button type="button" class="prompt-card"
+                            data-prompt="A Coast Guard member failed face verification at the kiosk. What are the likely causes, and what should an administrator check before re-enrolling them?">
+                            <span class="prompt-icon is-gold" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="m10.3 3.9-8.1 14a2 2 0 0 0 1.7 3h16.2a2 2 0 0 0 1.7-3l-8.1-14a2 2 0 0 0-3.4 0z" />
+                                    <path d="M12 9v4M12 17h.01" />
+                                </svg>
+                            </span>
+                            <span>
+                                <span class="prompt-title">Troubleshoot a failed match</span>
+                                <span class="prompt-desc">Likely causes and what to check before
+                                    re-enrolment.</span>
+                            </span>
+                        </button>
+
+                        <button type="button" class="prompt-card"
+                            data-prompt="Summarise the mandate and core functions of the Philippine Coast Guard and its Marine Environmental Protection Command, citing your sources.">
+                            <span class="prompt-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                                    stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                    <path d="M14 2v6h6" />
+                                    <path d="M8 13h8M8 17h5" />
+                                </svg>
+                            </span>
+                            <span>
+                                <span class="prompt-title">PCG &amp; MEPCOM reference</span>
+                                <span class="prompt-desc">Mandate and core functions, with citations.</span>
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="composer-wrap">
+                <div id="errorBox" class="alert alert-danger chat-error" role="alert" hidden></div>
+
+                <form id="chatForm" class="composer">
+                    <label for="messageInput" class="sr-only">Ask Pong AI a question</label>
+                    <textarea id="messageInput" name="message" rows="1" maxlength="4000"
+                        placeholder="Ask Pong AI about procedures, personnel records or uploaded documents…" required></textarea>
+
+                    <div class="composer-bar">
+                        <p class="composer-hint" id="composerHint">
+                            <kbd>Enter</kbd> to send · <kbd>Shift</kbd> + <kbd>Enter</kbd> for a new line
+                            <span class="composer-count" id="charCount" aria-hidden="true">0 / 4000</span>
+                        </p>
+
+                        <button id="sendButton" type="submit" class="btn btn-primary">
+                            <span id="sendButtonText">Send</span>
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="m22 2-7 20-4-9-9-4Z" />
+                                <path d="M22 2 11 13" />
+                            </svg>
+                        </button>
+                    </div>
+                </form>
+
+                <p class="composer-note">AI-generated answers can be wrong. Verify important information against
+                    official PCG references.</p>
+            </div>
+        </section>
+
+        <aside class="chat-aside" aria-label="About Pong AI">
+            <div class="card card-pad rise rise-3">
+                <p class="eyebrow" style="margin:0 0 12px">Knowledge sources</p>
+                <ul class="aside-list">
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                        </svg>
+                        <span>Obsidian knowledge base
+                            <small>System notes and PCG reference material.</small></span>
+                    </li>
+                    <li>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <path d="M14 2v6h6" />
+                        </svg>
+                        <span>Uploaded PDF documents
+                            <small>Cited by document and page number.</small></span>
+                    </li>
+                </ul>
+                <a href="{{ route('pdf-documents.index') }}" class="btn btn-ghost btn-sm" style="width:100%;margin-top:16px">
+                    Manage documents
+                </a>
+            </div>
+
+            <div class="card card-pad rise rise-3">
+                <p class="eyebrow" style="margin:0 0 12px">Try asking</p>
+                <div style="display:grid;gap:8px">
+                    <button type="button" class="ask-link"
+                        data-prompt="What personal and biometric data does BioVerify AI store, and how is access to it restricted?">
+                        What biometric data is stored?
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14M13 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <button type="button" class="ask-link"
+                        data-prompt="What is recorded in the BioVerify AI recognition audit log, and how should administrators review it?">
+                        What does the audit log record?
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14M13 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <button type="button" class="ask-link"
+                        data-prompt="Summarise the key points from the uploaded PDF documents and cite the pages you used.">
+                        Summarise uploaded PDFs
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14M13 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="alert alert-warn rise rise-4" style="display:block">
+                <strong style="display:block;margin-bottom:4px">Handling guidance</strong>
+                Do not enter passwords, classified material, or personal and biometric data that the question
+                does not need.
+            </div>
+        </aside>
+    </div>
+@endsection
+
+@push('scripts')
     <script>
         (() => {
             'use strict';
 
-            const sidebar = document.getElementById('pcgSidebar');
-            const overlay = document.getElementById('sidebarOverlay');
-            const desktopToggle = document.getElementById('sidebarToggle');
-            const mobileToggle = document.getElementById('mobileMenuButton');
-            const menuIcon = document.getElementById('menuIcon');
-
-            const desktopMedia = window.matchMedia('(min-width: 768px)');
-            const storageKey = 'askPongSidebarCollapsed';
-
-            let mobileOpen = false;
-
-            function isDesktop() {
-                return desktopMedia.matches;
-            }
-
-            function applyDesktopState(collapsed) {
-                sidebar.classList.toggle('sidebar-collapsed', collapsed);
-
-                desktopToggle.setAttribute('aria-expanded', String(!collapsed));
-                desktopToggle.setAttribute(
-                    'aria-label',
-                    collapsed ? 'Expand sidebar' : 'Collapse sidebar'
-                );
-                desktopToggle.setAttribute(
-                    'title',
-                    collapsed ? 'Expand sidebar' : 'Collapse sidebar'
-                );
-
-                try {
-                    localStorage.setItem(storageKey, collapsed ? 'true' : 'false');
-                } catch (error) {
-                    // Sidebar still works when browser storage is unavailable.
-                }
-            }
-
-            function toggleDesktopSidebar() {
-                if (!isDesktop()) return;
-
-                const collapsed = !sidebar.classList.contains('sidebar-collapsed');
-                applyDesktopState(collapsed);
-            }
-
-            function openMobileSidebar() {
-                if (isDesktop()) return;
-
-                mobileOpen = true;
-                sidebar.classList.add('sidebar-open');
-                overlay.classList.add('overlay-visible');
-
-                mobileToggle.setAttribute('aria-expanded', 'true');
-                mobileToggle.setAttribute('aria-label', 'Close navigation');
-                menuIcon.textContent = '✕';
-                document.body.style.overflow = 'hidden';
-            }
-
-            function closeMobileSidebar() {
-                mobileOpen = false;
-                sidebar.classList.remove('sidebar-open');
-                overlay.classList.remove('overlay-visible');
-
-                mobileToggle.setAttribute('aria-expanded', 'false');
-                mobileToggle.setAttribute('aria-label', 'Open navigation');
-                menuIcon.textContent = '☰';
-                document.body.style.overflow = '';
-            }
-
-            desktopToggle.addEventListener('click', toggleDesktopSidebar);
-
-            mobileToggle.addEventListener('click', () => {
-                if (mobileOpen) {
-                    closeMobileSidebar();
-                } else {
-                    openMobileSidebar();
-                }
-            });
-
-            overlay.addEventListener('click', closeMobileSidebar);
-
-            sidebar.querySelectorAll('a').forEach(link => {
-                link.addEventListener('click', () => {
-                    if (!isDesktop()) closeMobileSidebar();
-                });
-            });
-
-            document.addEventListener('keydown', event => {
-                if (event.key === 'Escape' && mobileOpen) {
-                    closeMobileSidebar();
-                }
-            });
-
-            function handleBreakpointChange() {
-                if (isDesktop()) {
-                    closeMobileSidebar();
-                    sidebar.classList.remove('sidebar-open');
-                    overlay.classList.remove('overlay-visible');
-                } else {
-                    sidebar.classList.remove('sidebar-collapsed');
-                }
-            }
-
-            if (desktopMedia.addEventListener) {
-                desktopMedia.addEventListener('change', handleBreakpointChange);
-            } else {
-                desktopMedia.addListener(handleBreakpointChange);
-            }
-
-            // Restore the desktop collapsed preference.
-            try {
-                applyDesktopState(
-                    isDesktop() && localStorage.getItem(storageKey) === 'true'
-                );
-            } catch (error) {
-                applyDesktopState(false);
-            }
-
-            handleBreakpointChange();
-
-            // =====================================================
-            // Pong Pagong CHAT
-            // =====================================================
-
             const form = document.getElementById('chatForm');
             const input = document.getElementById('messageInput');
             const messages = document.getElementById('chatMessages');
+            const welcomePanel = document.getElementById('welcomePanel');
             const sendButton = document.getElementById('sendButton');
             const sendButtonText = document.getElementById('sendButtonText');
             const errorBox = document.getElementById('errorBox');
+            const clearButton = document.getElementById('clearChat');
+            const chatHead = document.getElementById('chatHead');
+            const chatState = document.getElementById('chatState');
+            const charCount = document.getElementById('charCount');
 
             const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
             const sendUrl = @json(route('ai-chat.send'));
+            const maxLength = Number(input.getAttribute('maxlength')) || 4000;
+
+            const timeFormat = new Intl.DateTimeFormat('en-PH', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+
+            const svgNs = 'http://www.w3.org/2000/svg';
 
             let busy = false;
 
@@ -1054,66 +922,242 @@
                 messages.scrollTop = messages.scrollHeight;
             }
 
-            function addMessage(role, text, sources = []) {
-                document.getElementById('welcomePanel')?.remove();
+            // Builds an SVG icon from path data only (no HTML parsing).
+            function icon(paths, extra) {
+                const svg = document.createElementNS(svgNs, 'svg');
+                svg.setAttribute('viewBox', '0 0 24 24');
+                svg.setAttribute('fill', 'none');
+                svg.setAttribute('stroke', 'currentColor');
+                svg.setAttribute('stroke-width', '1.7');
+                svg.setAttribute('stroke-linecap', 'round');
+                svg.setAttribute('stroke-linejoin', 'round');
+                svg.setAttribute('aria-hidden', 'true');
+
+                paths.forEach(d => {
+                    const path = document.createElementNS(svgNs, 'path');
+                    path.setAttribute('d', d);
+                    svg.appendChild(path);
+                });
+
+                if (extra) extra(svg);
+
+                return svg;
+            }
+
+            function shieldIcon() {
+                return icon([
+                    'M12 2.5 4 5.5v6c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10v-6z',
+                    'M12 9.2v8',
+                    'M9.5 11.5h5',
+                    'M8 14.6c.6 1.6 2.2 2.6 4 2.6s3.4-1 4-2.6'
+                ], svg => {
+                    const c = document.createElementNS(svgNs, 'circle');
+                    c.setAttribute('cx', '12');
+                    c.setAttribute('cy', '7.8');
+                    c.setAttribute('r', '1.4');
+                    svg.appendChild(c);
+                });
+            }
+
+            // "PDF: Title (file.pdf) — Page 3" / "Obsidian: note.md" -> kind + label.
+            function parseSource(source) {
+                let raw;
+
+                if (source && typeof source === 'object') {
+                    raw = String(source.label || source.title || source.source || '');
+                } else {
+                    raw = String(source ?? '');
+                }
+
+                const match = raw.match(/^\s*(PDF|Obsidian)\s*:\s*(.+)$/i);
+
+                if (!match) return {
+                    kind: 'Source',
+                    text: raw
+                };
+
+                return {
+                    kind: match[1].toLowerCase() === 'pdf' ? 'PDF' : 'Obsidian',
+                    text: match[2]
+                };
+            }
+
+            function renderSources(sources) {
+                const wrap = document.createElement('div');
+                wrap.className = 'cites';
+
+                const label = document.createElement('p');
+                label.className = 'cites-label';
+                label.textContent = sources.length === 1 ? '1 source' : sources.length + ' sources';
+
+                const list = document.createElement('ul');
+                list.className = 'cite-list';
+
+                sources.forEach(source => {
+                    const parsed = parseSource(source);
+                    if (!parsed.text) return;
+
+                    const item = document.createElement('li');
+                    item.className = 'cite';
+                    item.title = parsed.kind + ': ' + parsed.text;
+
+                    const kind = document.createElement('span');
+                    kind.className = 'cite-kind' + (parsed.kind === 'PDF' ? ' is-pdf' : '');
+                    kind.textContent = parsed.kind;
+
+                    const text = document.createElement('span');
+                    text.className = 'cite-text';
+                    text.textContent = parsed.text;
+
+                    item.append(kind, text);
+                    list.appendChild(item);
+                });
+
+                wrap.append(label, list);
+
+                return wrap;
+            }
+
+            function copyButton(text) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'msg-tool';
+
+                const label = document.createElement('span');
+                label.textContent = 'Copy';
+
+                button.append(
+                    icon(['M8 4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2',
+                        'M10 2h10a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H10a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z'
+                    ]),
+                    label
+                );
+
+                button.addEventListener('click', async () => {
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        label.textContent = 'Copied';
+                    } catch {
+                        label.textContent = 'Copy unavailable';
+                    }
+
+                    setTimeout(() => {
+                        label.textContent = 'Copy';
+                    }, 1600);
+                });
+
+                return button;
+            }
+
+            function addMessage(role, text, sources = [], options = {}) {
+                welcomePanel.hidden = true;
 
                 const isUser = role === 'user';
 
-                const wrapper = document.createElement('div');
-                wrapper.className = 'message-row';
+                const row = document.createElement('div');
+                row.className = 'msg ' + (isUser ? 'msg-user' : 'msg-assistant');
 
                 const avatar = document.createElement('div');
-                avatar.className = 'message-avatar ' +
-                    (isUser ? 'user-avatar' : 'assistant-avatar');
-                avatar.textContent = isUser ? 'YOU' : 'P';
+                avatar.className = 'msg-avatar' + (isUser ? '' : ' pong-mark');
                 avatar.setAttribute('aria-hidden', 'true');
 
-                const content = document.createElement('div');
-                content.className = 'message-bubble ' + (isUser ? 'user-bubble' : '');
-
-                const label = document.createElement('p');
-                label.className = 'mb-2 text-xs font-extrabold ' +
-                    (isUser ? 'text-blue-100' : 'text-blue-800');
-                label.textContent = isUser ? 'You' : 'Pong Pagong';
-
-                const body = document.createElement('div');
-                body.className = 'message-content';
-                body.textContent = String(text ?? '');
-
-                content.append(label, body);
-
-                if (!isUser && Array.isArray(sources) && sources.length > 0) {
-                    const sourceWrap = document.createElement('div');
-                    sourceWrap.className = 'mt-4 border-t border-slate-100 pt-3';
-
-                    const sourceTitle = document.createElement('p');
-                    sourceTitle.className = 'mb-2 text-xs font-extrabold text-slate-500';
-                    sourceTitle.textContent = 'Knowledge sources';
-
-                    const sourceList = document.createElement('ul');
-                    sourceList.className =
-                        'list-inside list-disc space-y-1 text-xs leading-5 text-slate-500';
-
-                    sources.forEach(source => {
-                        const item = document.createElement('li');
-                        item.textContent = String(source);
-                        sourceList.appendChild(item);
-                    });
-
-                    sourceWrap.append(sourceTitle, sourceList);
-                    content.appendChild(sourceWrap);
+                if (isUser) {
+                    avatar.textContent = 'YOU';
+                } else {
+                    avatar.appendChild(shieldIcon());
                 }
 
-                wrapper.append(avatar, content);
-                messages.appendChild(wrapper);
+                const body = document.createElement('div');
+                body.className = 'msg-body';
+
+                const meta = document.createElement('div');
+                meta.className = 'msg-meta';
+
+                const who = document.createElement('strong');
+                who.textContent = isUser ? 'You' : 'Pong AI';
+
+                const time = document.createElement('span');
+                time.className = 'mono';
+                time.textContent = timeFormat.format(new Date());
+
+                meta.append(who, time);
+
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble' + (options.loading ? ' is-loading' : '');
+
+                const content = document.createElement('p');
+                content.className = 'bubble-text';
+
+                if (options.loading) {
+                    const loadingText = document.createElement('span');
+                    loadingText.textContent = 'Searching the knowledge base';
+                    content.appendChild(loadingText);
+
+                    for (let i = 0; i < 3; i++) {
+                        const dot = document.createElement('span');
+                        dot.className = 'typing-dot';
+                        content.appendChild(dot);
+                    }
+                } else {
+                    // Model output is always rendered as text, never as HTML.
+                    content.textContent = String(text ?? '');
+                }
+
+                bubble.appendChild(content);
+
+                if (!isUser && Array.isArray(sources) && sources.length > 0) {
+                    bubble.appendChild(renderSources(sources));
+                }
+
+                body.append(meta, bubble);
+
+                if (!isUser && !options.loading && text) {
+                    const tools = document.createElement('div');
+                    tools.className = 'msg-tools';
+                    tools.appendChild(copyButton(String(text)));
+                    body.appendChild(tools);
+                }
+
+                row.append(avatar, body);
+                messages.appendChild(row);
                 scrollToBottom();
 
-                return wrapper;
+                clearButton.disabled = busy;
+
+                return row;
             }
 
             function showError(message) {
                 errorBox.textContent = message;
-                errorBox.classList.remove('hidden');
+                errorBox.hidden = false;
+            }
+
+            function hideError() {
+                errorBox.textContent = '';
+                errorBox.hidden = true;
+            }
+
+            function setBusy(state) {
+                busy = state;
+
+                sendButton.disabled = state;
+                sendButtonText.textContent = state ? 'Thinking…' : 'Send';
+                chatHead.dataset.busy = String(state);
+                chatState.textContent = state ? 'Searching knowledge base…' : 'Ready · Knowledge assistant';
+                clearButton.disabled = state || !messages.querySelector('.msg');
+
+                document.querySelectorAll('[data-prompt]').forEach(button => {
+                    button.disabled = state;
+                });
+            }
+
+            function autosize() {
+                input.style.height = 'auto';
+                input.style.height = Math.min(input.scrollHeight, 180) + 'px';
+
+                const length = input.value.length;
+                charCount.textContent = length + ' / ' + maxLength;
+                charCount.classList.toggle('is-near', length > maxLength * 0.9);
             }
 
             async function sendMessage(message) {
@@ -1121,32 +1165,17 @@
 
                 if (busy || !message) return;
 
-                busy = true;
-                errorBox.textContent = '';
-                errorBox.classList.add('hidden');
-
-                sendButton.disabled = true;
-                sendButtonText.textContent = 'Thinking...';
-
-                document.querySelectorAll('[data-prompt]').forEach(button => {
-                    button.disabled = true;
-                });
+                hideError();
+                setBusy(true);
 
                 addMessage('user', message);
 
-                const loadingMessage = addMessage('assistant', '');
-                const loadingBody = loadingMessage.querySelector('.message-content');
-
-                const loadingText = document.createElement('span');
-                loadingText.textContent = 'Pong Pagong is thinking';
-
-                const dot1 = document.createElement('span');
-                dot1.className = 'typing-dot';
-                dot1.textContent = ' ·';
-
-                loadingBody.append(loadingText, dot1, dot1.cloneNode(true), dot1.cloneNode(true));
+                const loadingMessage = addMessage('assistant', '', [], {
+                    loading: true
+                });
 
                 input.value = '';
+                autosize();
 
                 try {
                     const response = await fetch(sendUrl, {
@@ -1166,7 +1195,7 @@
                     }
 
                     if (response.status === 401) {
-                        throw new Error('You have been signed out. Sign in again to use Pong.');
+                        throw new Error('You have been signed out. Sign in again to use Pong AI.');
                     }
 
                     if (response.status === 429) {
@@ -1204,16 +1233,10 @@
                     // unless something new was typed meanwhile.
                     if (!input.value.trim()) {
                         input.value = message;
+                        autosize();
                     }
                 } finally {
-                    busy = false;
-                    sendButton.disabled = false;
-                    sendButtonText.textContent = 'Send message';
-
-                    document.querySelectorAll('[data-prompt]').forEach(button => {
-                        button.disabled = false;
-                    });
-
+                    setBusy(false);
                     input.focus();
                 }
             }
@@ -1230,6 +1253,8 @@
                 }
             });
 
+            input.addEventListener('input', autosize);
+
             document.querySelectorAll('[data-prompt]').forEach(button => {
                 button.addEventListener('click', () => {
                     if (busy) return;
@@ -1238,8 +1263,19 @@
                     sendMessage(input.value);
                 });
             });
+
+            clearButton.addEventListener('click', () => {
+                if (busy) return;
+
+                messages.querySelectorAll('.msg').forEach(row => row.remove());
+                welcomePanel.hidden = false;
+                hideError();
+                clearButton.disabled = true;
+                messages.scrollTop = 0;
+                input.focus();
+            });
+
+            autosize();
         })();
     </script>
-</body>
-
-</html>
+@endpush

@@ -31,9 +31,22 @@ app = FastAPI(
 MODEL_NAME = "buffalo_l"
 MODEL_VERSION = "buffalo_l"
 
+# Passive liveness (anti-spoofing) score from InsightFace's verified
+# addon (~/.insightface/addons/liveness.onnx). "observe" mode keeps the
+# embedding for every face and only reports the score; Laravel decides
+# whether a non-live result blocks verification.
+LIVENESS_THRESHOLD = float(os.getenv("FACE_LIVENESS_THRESHOLD", "0.80"))
+
 face_app = FaceAnalysis(
     name=MODEL_NAME,
     providers=["CPUExecutionProvider"],
+    # Only the models this service uses. Skipping the age/gender and
+    # 3D-landmark models makes every request faster; embeddings are
+    # unchanged because the recognition model is the same.
+    allowed_modules=["detection", "recognition"],
+    addons=["liveness"],
+    liveness_mode="observe",
+    liveness_threshold=LIVENESS_THRESHOLD,
 )
 
 # 512x512 is a good speed/accuracy compromise.
@@ -103,6 +116,8 @@ def health():
         "status": "healthy",
         "model": MODEL_VERSION,
         "face_threshold": MATCH_THRESHOLD,
+        "liveness_model_loaded": "liveness" in face_app.addons,
+        "liveness_threshold": LIVENESS_THRESHOLD,
         "voice_model": VOICE_MODEL_VERSION,
         "voice_model_available": VOICE_MODEL_PATH.is_file(),
         "voice_threshold": VOICE_MATCH_THRESHOLD,
@@ -209,6 +224,25 @@ def check_enrollment_quality(face):
             status_code=422,
             detail="The face is too small. Move closer to the camera."
         )
+
+
+# ============================================================
+# PASSIVE LIVENESS
+# ============================================================
+
+def face_liveness(face):
+    """Liveness result for a detected face (observe mode)."""
+
+    result = getattr(face, "liveness", None) or {}
+
+    score = result.get("live_score")
+
+    return {
+        "status": result.get("status", "unavailable"),
+        "is_live": result.get("is_live"),
+        "live_score": None if score is None else round(float(score), 4),
+        "threshold": LIVENESS_THRESHOLD,
+    }
 
 
 # ============================================================
@@ -464,6 +498,10 @@ async def face_recognize(
             .tolist()
         )
 
+        liveness = face_liveness(
+            face
+        )
+
 
         # ======================================================
         # PARSE REGISTERED FACES
@@ -701,7 +739,10 @@ async def face_recognize(
                 "message":
                     "No usable registered face embeddings found.",
 
-                "bbox":
+                "liveness":
+                    liveness,
+
+            "bbox":
                     bbox,
 
                 "model_version":
@@ -755,7 +796,10 @@ async def face_recognize(
                 "message":
                     "Face detected but no sufficiently similar registered face was found.",
 
-                "bbox":
+                "liveness":
+                    liveness,
+
+            "bbox":
                     bbox,
 
                 "model_version":
@@ -794,6 +838,9 @@ async def face_recognize(
             "threshold":
                 MATCH_THRESHOLD,
 
+            "liveness":
+                liveness,
+
             "bbox":
                 bbox,
 
@@ -825,6 +872,160 @@ async def face_recognize(
             status_code=500,
             detail=str(e)
         )
+
+
+# ============================================================
+# LIVE FACE ANALYSIS (capture guidance)
+# ============================================================
+#
+# Fast, detection-only check used while the camera is open. It never
+# compares against registered faces. It reports where the face is,
+# how large, which way the head is turned, brightness, sharpness and
+# the passive liveness score so the browser can guide the person and
+# Laravel can run the head-turn challenge.
+#
+MAX_ANALYZE_BYTES = 2 * 1024 * 1024
+
+
+def face_quality(image, bbox):
+
+    height, width = image.shape[:2]
+
+    x1, y1, x2, y2 = [int(v) for v in bbox[:4]]
+    x1, y1 = max(x1, 0), max(y1, 0)
+    x2, y2 = min(x2, width), min(y2, height)
+
+    crop = image[y1:y2, x1:x2]
+
+    if crop.size == 0:
+        return 0.0, 0.0
+
+    gray = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+
+    # Normalise size so sharpness is comparable across distances.
+    gray = cv2.resize(gray, (112, 112))
+
+    brightness = float(np.mean(gray))
+    sharpness = float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
+    return brightness, sharpness
+
+
+def head_yaw(kps):
+    """
+    Horizontal head turn from the 5 landmarks: nose offset from the
+    eye midpoint, in eye-distance units. ~0 when facing the camera;
+    roughly +/-0.3 or more for a clear turn to either side.
+    """
+
+    left_eye, right_eye, nose = kps[0], kps[1], kps[2]
+
+    eye_distance = float(np.linalg.norm(right_eye - left_eye))
+
+    if eye_distance <= 0:
+        return 0.0
+
+    eye_mid_x = (left_eye[0] + right_eye[0]) / 2.0
+
+    return float((nose[0] - eye_mid_x) / eye_distance)
+
+
+@app.post("/face/analyze")
+def face_analyze(
+    face_image: UploadFile = File(...)
+):
+
+    start_time = time.perf_counter()
+
+    contents = face_image.file.read(MAX_ANALYZE_BYTES + 1)
+
+    if len(contents) > MAX_ANALYZE_BYTES:
+
+        raise HTTPException(
+            status_code=413,
+            detail="Frame is too large."
+        )
+
+    image = decode_image(
+        contents
+    )
+
+    height, width = image.shape[:2]
+
+    bboxes, kpss = face_app.det_model.detect(
+        image,
+        max_num=0,
+        metric="default",
+    )
+
+    faces_count = int(bboxes.shape[0])
+
+    result = {
+        "success": True,
+        "faces_detected": faces_count,
+        "frame": {"width": width, "height": height},
+        "face": None,
+        "liveness": None,
+    }
+
+    if faces_count == 0:
+
+        result["processing_time_ms"] = round((time.perf_counter() - start_time) * 1000, 2)
+
+        return result
+
+
+    # Guide using the largest face.
+    areas = (bboxes[:, 2] - bboxes[:, 0]) * (bboxes[:, 3] - bboxes[:, 1])
+    index = int(np.argmax(areas))
+
+    bbox = bboxes[index]
+    kps = kpss[index]
+
+    brightness, sharpness = face_quality(image, bbox)
+
+    x1, y1, x2, y2 = [float(v) for v in bbox[:4]]
+
+    result["face"] = {
+        "detection_score": round(float(bbox[4]), 4),
+        "center_x": round(((x1 + x2) / 2) / width, 4),
+        "center_y": round(((y1 + y2) / 2) / height, 4),
+        "width": round((x2 - x1) / width, 4),
+        "height": round((y2 - y1) / height, 4),
+        "yaw": round(head_yaw(kps), 4),
+        "brightness": round(brightness, 1),
+        "sharpness": round(sharpness, 1),
+    }
+
+    liveness_model = face_app.addons.get("liveness")
+
+    if liveness_model is not None:
+
+        try:
+
+            prediction = liveness_model.predict(image, kps)
+
+            score = prediction.get("live_score")
+
+            result["liveness"] = {
+                "status": prediction.get("status"),
+                "is_live": prediction.get("is_live"),
+                "live_score": None if score is None else round(float(score), 4),
+                "threshold": LIVENESS_THRESHOLD,
+            }
+
+        except Exception:
+
+            result["liveness"] = {
+                "status": "error",
+                "is_live": None,
+                "live_score": None,
+                "threshold": LIVENESS_THRESHOLD,
+            }
+
+    result["processing_time_ms"] = round((time.perf_counter() - start_time) * 1000, 2)
+
+    return result
 
 
 # ============================================================

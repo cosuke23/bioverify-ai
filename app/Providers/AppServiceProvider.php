@@ -28,6 +28,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(10)->by($request->ip());
         });
 
+        // Live camera guidance frames (detection only, ~2 per second).
+        RateLimiter::for('face-analyze', function (Request $request) {
+            return Limit::perMinute(180)->by($request->ip());
+        });
+
         // Ollama-backed chat, PDF questions and uploads.
         RateLimiter::for('ai', function (Request $request) {
             return Limit::perMinute(20)->by(
