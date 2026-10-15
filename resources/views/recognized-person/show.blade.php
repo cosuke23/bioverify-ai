@@ -1835,5 +1835,141 @@
 </body>
 
 
+<script>
+    (function() {
+        'use strict';
+
+        if (window.bioVerifyWelcomeInitialized) {
+            return;
+        }
+
+        window.bioVerifyWelcomeInitialized = true;
+
+        let welcomeStarted = false;
+        let welcomeTimer = null;
+
+        const synth = window.speechSynthesis;
+
+        if (!synth || !('SpeechSynthesisUtterance' in window)) {
+            console.warn('Speech synthesis is not supported.');
+            return;
+        }
+
+        const welcomeMessage =
+            'Welcome. Welcome to Pong AI. Master Boss Sensei ' +
+            'HERMES AI Ready.';
+
+        function getPreferredVoice() {
+            const voices = synth.getVoices();
+
+            // 1. Siri voice, if the browser exposes one
+            const siriVoice = voices.find(voice =>
+                /siri/i.test(voice.name) &&
+                /female|siri/i.test(voice.name)
+            );
+
+            if (siriVoice) return siriVoice;
+
+            // 2. Preferred female English voices
+            const preferredFemale = voices.find(voice =>
+                /^en[-_]/i.test(voice.lang) &&
+                /zira|samantha|aria|jenny|female/i.test(voice.name)
+            );
+
+            if (preferredFemale) return preferredFemale;
+
+            // 3. Google UK English Female
+            const googleFemale = voices.find(voice =>
+                /google uk english female/i.test(voice.name)
+            );
+
+            if (googleFemale) return googleFemale;
+
+            // 4. Any available English voice
+            return voices.find(voice =>
+                /^en[-_]/i.test(voice.lang)
+            ) || voices[0] || null;
+        }
+
+        function speakWelcome() {
+            if (welcomeStarted) return;
+
+            const voice = getPreferredVoice();
+
+            if (!voice && synth.getVoices().length === 0) {
+                return;
+            }
+
+            welcomeStarted = true;
+            window.bioVerifyWelcomeStarted = true;
+
+            const greeting =
+                new SpeechSynthesisUtterance(welcomeMessage);
+
+            if (voice) {
+                greeting.voice = voice;
+                greeting.lang = voice.lang;
+                console.log(
+                    'Selected welcome voice:',
+                    voice.name,
+                    voice.lang
+                );
+            } else {
+                greeting.lang = 'en-US';
+            }
+
+            greeting.rate = 0.92;
+            greeting.pitch = 1.05;
+            greeting.volume = 1;
+
+            greeting.onstart = function() {
+                console.log('BioVerify AI welcome voice started.');
+            };
+
+            greeting.onend = function() {
+                console.log('BioVerify AI welcome voice completed.');
+            };
+
+            greeting.onerror = function(event) {
+                console.warn('Welcome voice error:', event.error);
+            };
+
+            synth.cancel();
+            synth.speak(greeting);
+        }
+
+        function scheduleWelcome() {
+            if (welcomeStarted) return;
+
+            clearTimeout(welcomeTimer);
+            welcomeTimer = setTimeout(speakWelcome, 800);
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener(
+                'DOMContentLoaded',
+                scheduleWelcome, {
+                    once: true
+                }
+            );
+        } else {
+            scheduleWelcome();
+        }
+
+        if (typeof synth.addEventListener === 'function') {
+            synth.addEventListener('voiceschanged', scheduleWelcome);
+        }
+
+        console.log(
+            'Available speech voices:',
+            synth.getVoices().map(voice => ({
+                name: voice.name,
+                language: voice.lang
+            }))
+        );
+    })();
+</script>
+
+
 
 </html>
